@@ -53,7 +53,7 @@ def read_vec(filename):
 
     file = open(filename, "rb")
 
-    nv = np.fromfile(file, dtype=np.long, count=1)
+    nv = np.fromfile(file, dtype=np.int64, count=1)
     v  = np.fromfile(file, dtype=np.double)
     file.close()
 
@@ -71,10 +71,10 @@ def read_mat(filename):
 
     file = open(filename, "rb")
 
-    real = np.fromfile(file, dtype=np.bool, count=1)
-    nrow = np.fromfile(file, dtype=np.long, count=1)
-    ncol = np.fromfile(file, dtype=np.long, count=1)
-    nonz = np.fromfile(file, dtype=np.long, count=1)
+    real = np.fromfile(file, dtype=np.bool,  count=1)
+    nrow = np.fromfile(file, dtype=np.int64, count=1)
+    ncol = np.fromfile(file, dtype=np.int64, count=1)
+    nonz = np.fromfile(file, dtype=np.int64, count=1)
 
     nr  = nrow[0]
     nc  = ncol[0]
@@ -85,10 +85,10 @@ def read_mat(filename):
     rval = np.fromfile(file, dtype=np.double, count=nnz)
     print(rval)
 
-    col  = np.fromfile(file, dtype=np.long, count=nnz)
+    col  = np.fromfile(file, dtype=np.int64, count=nnz)
     print(col)
 
-    rowstt = np.fromfile(file, dtype=np.long, count=nr+1)
+    rowstt = np.fromfile(file, dtype=np.int64, count=nr+1)
     print(rowstt)
 
     file.close()
