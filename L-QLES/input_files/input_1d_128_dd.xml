@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<laplace>
+  <case name="l1d_128_dd" dimension="1" force="1.0"></case>
+  <mesh direction="x">
+    <length>1</length>
+    <ntotal>128</ntotal>
+    <nclust>43</nclust>
+    <cltype>2</cltype>                 <!-- 1, 2 for 1 or 2 sided clustering, -1 to cluster at xmax -->
+    <cratio>1.1</cratio>               <!-- expansion factor in clustering region -->
+    <btype>D, D</btype>                <!-- boundary types: D=Dirichlet, N=Neumann, R=Repeat, S=Symmetry -->
+    <bvalue>0.0, 0.0</bvalue>          <!-- boundary values for Dirichlet/Neumann boundaries -->
+    <degfix>64</degfix>                <!-- index of node to fix degenerate matrix -->
+  </mesh>
+</laplace>
+

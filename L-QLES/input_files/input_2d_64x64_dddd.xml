@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<laplace>
+  <case name="l2d_64x64_dddd" dimension="2" force="1.0"></case>
+  <mesh direction="x">
+    <length>1</length>
+    <ntotal>64</ntotal>
+    <nclust>22</nclust>
+    <cltype>2</cltype>                 <!-- 1, 2 for 1 or 2 sided clustering, -1 to cluster at xmax -->
+    <cratio>1.2</cratio>               <!-- expansion factor in clustering region -->
+    <btype>D, D</btype>                <!-- boundary types: D=Dirichlet, N=Neumann, R=Repeat, S=Symmetry -->
+    <bvalue>0.0, 0.0</bvalue>          <!-- boundary values for Dirichlet/Neumann boundaries -->
+    <degfix>32</degfix>                 <!-- index of node to fix degenerate matrix -->
+  </mesh>
+  <mesh direction="y">
+    <length>1</length>
+    <ntotal>64</ntotal>
+    <nclust>22</nclust>
+    <cltype>2</cltype>                 <!-- 1, 2 for 1 or 2 sided clustering, -1 to cluster at ymax -->
+    <cratio>1.2</cratio>               <!-- expansion factor in clustering region -->
+    <btype>D, D</btype>                <!-- boundary types: D=Dirichlet, N=Neumann, R=Repeat, S=Symmetry -->
+    <bvalue>0.0, 0.0</bvalue>          <!-- boundary values for Dirichlet/Neumann boundaries -->
+    <degfix>32</degfix>                 <!-- index of node to fix degenerate matrix -->
+  </mesh>
+</laplace>
+
