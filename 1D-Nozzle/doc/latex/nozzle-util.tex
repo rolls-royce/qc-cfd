@@ -1,0 +1,156 @@
+\documentclass[10pt,a4]{article}
+
+%\usepackage[toc,page]{appendix}
+\usepackage{geometry}
+\usepackage{amsmath}
+\usepackage{physics}
+\usepackage{graphicx}
+\usepackage{mathtools}      % loads amsmath and some very useful complements
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{textcomp}       % registered and trademark symbols
+
+\usepackage[colorlinks,linkcolor=black,citecolor=blue,urlcolor=blue]{hyperref}
+
+\usepackage[ruled,vlined]{algorithm2e}  % used for including algorithms
+\usepackage{subcaption}                 % needed for using subfigures
+\usepackage{amssymb}
+\usepackage{physics}
+\usepackage{verbatim} 
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{cleveref}   % must come after hyperref, see https://ctan.org/pkg/cleveref and https://www-uxsup.csx.cam.ac.uk/pub/tex-archive/macros/latex/contrib/cleveref/cleveref.pdf
+
+% code listings
+% -------------
+\usepackage{color}
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\usepackage{listings}
+\lstset{frame=tb,
+  language=Python,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3,
+  captionpos=b
+}
+
+\lstdefinelanguage{json}{
+  sensitive = true,
+  basicstyle={\small\ttfamily},
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  stringstyle=\color{mauve},
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\lstdefinelanguage{console}{
+}
+
+%
+% add listings to cleveref
+% ------------------------
+\crefname{lstlisting}{listing}{listings}
+\Crefname{lstlisting}{Listing}{Listings}
+
+%
+% nomenclature
+% ------------
+\usepackage{nomencl}
+\makenomenclature
+\renewcommand{\nomname}{Notation}
+
+%
+% path for figures
+% ----------------
+\graphicspath{{figures/}}
+
+% page layout
+% -----------
+\geometry{verbose,a4paper,tmargin=25mm,bmargin=25mm,lmargin=25mm,rmargin=25mm}
+
+%
+% header
+% ------
+\pagestyle{fancy}
+\renewcommand{\headrulewidth}{0.5pt} % line in header area
+\fancyhf{}
+\chead{Confidential under Collaboration Agreement for IUK grant 10004857, December 2021}
+\cfoot{\thepage}
+
+
+% Front page
+% ----------
+\title{A Python Framework for Solving 1-Dimensional Nozzle Flows using Quantum Linear Equation Solvers}
+\author{
+  Leigh Lapworth \\
+  Rolls-Royce
+}
+
+\begin{document}
+\maketitle
+
+% abstract
+% --------
+\begin{abstract}
+This article describes a hybrid quantum-classical testing framework for the 1-dimensional
+flow through a convergent-divergent nozzle.
+The CFD solver models both low-speed incompressible and transonic compressible flow.
+It also offers both the segregated SIMPLE solver and an implicit coupled solver for both 
+flow types.
+The core solver is written in C and is accessible via a Python wrapper using the {\it ctypes}
+interface.
+This allows the solver to be tested with a range of quantum computing APIs.
+The solver is controlled using a simple XML file.
+The Python interface using a simple get and put interface to retrieve the CFD matrix and
+right hand side vector from the CFD discretisation and return the QLES solution to update the 
+flow field.
+There are a range of solver options that can be used to generate matrices with up to 8 diagonals 
+using the coupled compressible solver. The standard pressure correction solver has 3 diagonals.
+The coupled incompressible solver has 6 diagonals and gives rapid convergence which is useful when
+emulating the quantum circuit is time-consuming.
+\end{abstract}
+
+
+% Nomenclature
+% ------------
+\printnomenclature
+
+% Contents
+% --------
+\newpage
+\tableofcontents
+
+% sections  (\input preferred as \include adds a clear page)
+% --------
+\newpage
+\input{nomen}
+\input{include/intro}
+\input{include/solver}
+\input{include/core}
+\input{include/results}
+\input{include/summary}
+
+% References
+% ----------
+%\addcontentsline{toc}{section}{Bibliography}
+\bibliographystyle{plain}
+\bibliography{include/references}
+
+\end{document}
+

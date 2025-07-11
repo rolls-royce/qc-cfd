@@ -1,0 +1,38 @@
+# Ignore hidden files
+.*
+# Include .gitignore
+!.gitignore
+# Ignore emacs backup files.
+*~
+# Ignore emacs autosave files
+*#
+# Ignore tar files
+*.tar
+*.tar.gz
+# Ignore object files
+*.o*
+*.so*
+# Ignore binaries
+*_load
+#ignore doc directory = Doxygen output
+doc
+#ignore test results directory and results archive
+tests/results
+archive
+#ignore latex files
+*.aux 
+*.idx
+*.log 
+*.out 
+*.ilg 
+*.ind 
+*.toc 
+*.bbl 
+*.blg
+#ignore pdf files
+*.pdf
+#ignore qasm output files
+*.dvi 
+*.eps 
+#ignore gprof files
+gmon.out

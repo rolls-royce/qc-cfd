@@ -1,0 +1,697 @@
+%
+% Solver
+% ------------
+\section{Nozzle CFD}
+
+Throughout this document the test case is referred to as a {\it nozzle}.
+This is the more common terminology for transonic flows. 
+For incompressible flows, {\it channel} is more commonly used, but we use a
+single terminology for both flow regimes.
+
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=0.70\textwidth]{c128-sol-simple.png}
+  \end{center}
+  \caption{Solution for compressible nozzle with 128 stations.}
+  \label{fig-c128-sol-simple}
+\end{figure}
+
+\Cref{fig-c128-sol-simple} shows the converged flow solution for a transonic 
+compressible test case.
+The bottom left figure shows the area of the channel, $A$, which is derived from the
+isentropic flow relationships:
+
+\begin{equation}
+  \frac{A}{A^*} = \frac{1}{M}
+                  \left[ \frac{2}{\gamma+1} \left(1 + \frac{\gamma - 1}{2}M^2 \right)
+                  \right]^{\frac{\gamma+1}{2(\gamma - 1)}}
+  \label{eqn:isent-area}
+\end{equation}
+
+where $M$ is the Mach number, $\gamma$ is the ratio of specific heats and
+$A^*$ is the area at the throat where $M=1$.
+In this test case, all variables are non-dimensionalised so that $A^*=1$.
+The length of the nozzle is always set to 1 and the user specifies an inlet Mach number, $M_{in}$.
+To set-up the nozzle area distribution, the outlet Mach number is set to $M_{out} = 1+M_{in}$.
+The axial stations are set according an equal Mach number of increment of
+$\delta M = 1.0/(nx-1)$ where $nx$ is the number of axial stations in the mesh. 
+The area at each station is set from \Cref{eqn:isent-area}.
+Note that the area equation is for isentropic, i.e. reversible, flow where the Mach number
+increases linearly. In the absence of a shock wave this gives the CFD solution.
+However, the interest is in the case when there is a shock wave within the nozzle as shown 
+in the bottom right of \Cref{fig-c128-sol-simple}.
+
+For incompressible flows, the channel area is an arc of a circle with a specified
+area contraction, typically $10\%$ at the midpoint, relative to the inlet and exit areas
+which are both set to $1.0$. The area distribution is not shown but follows the shape
+of the pressure distribution.
+
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=0.70\textwidth]{i128-sol-simple.png}
+  \end{center}
+  \caption{Solution for incompressible nozzle with 128 stations.}
+  \label{fig-i128-sol-simple}
+\end{figure}
+
+
+%
+% Boundary conditions
+% -------------------
+\subsection{Boundary Conditions}
+
+In addition to setting the geometry of the nozzle, we also need to provide boundary
+conditions at the entrance and exit to the nozzle. These must be specified in a way that
+is consistent with that signals propogate within the flow.
+
+Following \Cref{fig-nozzle-disc}, a velocity boundary condition is set at the inlet as
+the velocity updates are largely convected in the flow direction.
+a pressure boundary condition is set at the outlet, as pressure signals propogate in 
+all directions at the speed of sound, relative to the flow field. 
+Setting an exit pressure boundary condition is only physically valid when the exit 
+flow velocity is subsonic. This is case for both incompressible and compressible flows
+used here and, hence, both have the same form of outlet condition:
+
+\begin{equation}
+  p|_{i=n}  = p_{exit}
+  \label{eqn-inletbc}
+\end{equation}
+
+That is, $p$ at the exit station, $i=n$ has a fixed value, $p_{exit}$.
+Although, incompressible and compressible flows have the same form of exit boundary
+condition, the values are different.
+The compressible solution in \Cref{fig-c128-sol-simple} has $p_{exit} = 0.75$.
+Whereas, the incompressible solution in \Cref{fig-i128-sol-simple} 
+has $p_{exit} = 0.95$.
+
+For both compressible and incompressible flows, the values of velocity at the exit and
+the pressure at the inlet are computed from the solution of the flow equations.
+At the inlet, the computed inlet value of pressure is used to set an inlet velocity 
+according to the inflow boundary condition. 
+
+\subsubsection{Compressible inflow condition}
+
+For compressible flows, the isentropic relationships give:
+
+\begin{equation}
+  \left( \frac{T_0}{t} \right ) =  \left( \frac{P_0}{p} \right ) ^{\frac{\gamma-1}{\gamma}}
+  \label{eqn-t-p-isen-1}
+\end{equation}
+
+Where $T_0$ and $P_0$ are the staganation temperature and pressure which are constant in
+isentropic, i.e. shock-free, flows.
+The flow upstream of the nozzle inlet is taken as isentropic and $T_0$ and $P_0$ 
+are user-specified boundary values. 
+For non-dimensionalised conditions, as used here, it is usual to set them both to unity.
+
+Rearranging \Cref{eqn-t-p-isen-1} gives:
+\begin{equation}
+  t = T_0 \left( \frac{p}{P_0} \right ) ^{\frac{\gamma-1}{\gamma}}
+  \label{eqn-t-p-isen-2}
+\end{equation}
+
+In addition, we have conservation of energy which, for isentropic flow, can be 
+expressed in terms of temperature as:
+
+\begin{equation}
+  T_0 = t + \frac{1}{2c_p}u^2
+  \label{eqn-energy}
+\end{equation}
+
+And can be rearranged to give:
+
+\begin{equation}
+  u = \sqrt{2 c_p (T_0 - t)}
+  \label{eqn-uin-isen}
+\end{equation}
+
+\Cref{eqn-t-p-isen-2} and \Cref{eqn-uin-isen} allow the inlet velocity to be updated from
+the value of pressure and the specified inlet stagnation conditions.
+
+
+\subsubsection{Incompressible inflow condition}
+
+For incompressible flow, we cannot use the isentropic relations as strictly the Mach number is
+zero or, more accurately, the speed of sound is infinite. Instead, we uswe Bernoulli's equation:
+
+\begin{equation}
+  P_0 = p + \frac{1}{2}\rho u^2
+  \label{eqn-Bernoulli}
+\end{equation}
+
+From which, the inlet velocity can be set from the computed inlet static pressure and
+the specified inlet stagnation pressure:
+
+\begin{equation}
+  u = \sqrt{\frac{2}{\rho} (P_0 - p)}
+  \label{eqn-uin-bern}
+\end{equation}
+
+
+
+% Discretisation
+% --------------
+\subsection{CFD discretisation}
+\label{subsec-discrete}
+
+Since, the focus of this test case is not CFD development, we use the discretisation scheme of
+\cite{gupta1993development}. In this scheme, the velocities and pressures are stored at the 
+same set of nodes with upwinded momentum control volumes and downwinded continuity control
+volumes. These are show in \Cref{fig-nozzle-v-disc} and \Cref{fig-nozzle-disc} respectively.
+
+\begin{figure}[h]
+  \centering
+  \begin{subfigure}[b]{0.70\textwidth}
+      \centering
+      \includegraphics[width=\textwidth]{nozzle-v-disc.png}
+      \caption{Upwinded momentum control volumes used to update nodes 2,..,n.}
+      \label{fig-nozzle-v-disc}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.70\textwidth}
+      \centering
+      \includegraphics[width=\textwidth]{nozzle-p-disc.png}
+      \caption{Downwinded continuity control volumes used to update nodes 1,..,n-1.}
+      \label{fig-nozzle-p-disc}
+  \end{subfigure}
+  \caption{Control volume setting for momentum and continuity equations.}
+  \label{fig-nozzle-disc}
+\end{figure}
+
+The 1-dimensional steady state equations to be solved are:
+
+\begin{equation}
+  \begin{array}{rcl}
+    \rho u \frac{\partial u}{\partial x} &=& - \frac{\partial p}{\partial x} \\[8pt]
+    \frac{\partial \rho u}{\partial x} &=& 0 \\
+  \end{array}
+  \label{eqn-euler-1d}
+\end{equation}
+
+For compressible flows, the following equations are also applied:
+
+\begin{equation}
+  \begin{array}{rcl}
+    p   &=& R\rho t \\[8pt]
+    T_0 &=& t + \frac{1}{2c_p}u^2
+  \end{array}
+  \label{eqn-gaslaw}
+\end{equation}
+
+where $R$ is the gas constant, $c_p$ is the specific heat at constant pressure, and
+$T_0$ is the constant total temperature which is set in $1.0$ in non-dimensional 
+units. This equation represents the conservation of energy. 
+
+
+The differential equations are discretised on the 1-dimensional mesh and 
+updated iteratively via corrections:
+\begin{equation}
+  \begin{array}{rcl}
+     \ket{u}    &\gets& \ket{u}    + \ket{\delta u} \\[8pt]
+     \ket{p}    &\gets& \ket{p}    + \ket{\delta p} \\[8pt]
+     \ket{\rho} &\gets& \ket{\rho} + \ket{\delta \rho}
+  \end{array}
+  \label{eqn-iter-update}
+\end{equation}
+
+For incompressible cases, the density is fixed at a non-dimensional value of $1.0$ 
+and is not updated as part of the solution. 
+
+The coupled iterative scheme is the most conceptually straightforward and will
+be described first
+
+
+% Incompressible Coupled
+% ----------------------
+\subsubsection{Incompressible coupled solver}
+\label{subsubsec-inco-couple}
+
+For incompressible flow, the discrete version of momentum equation is \Cref{eqn-euler-1d} is:
+
+\begin{equation}
+  \begin{array}{rcl}
+    \rho u_{i-\frac{1}{2}} \frac{u_i - u_{i-1}}{x_i - x_{i-1}} &=&
+                   - \frac{p_i - p_{i-1}}{x_i - x_{i-1}} \\
+  \end{array}
+  \label{eqn-euler-1d-disc1}
+\end{equation}
+
+Note that we have followed \cite{gupta1993development} in using a finite difference
+discretisation for the momentum equation.
+
+
+It is common practice in CFD to form an {\it inner} linearised system
+to solve for the corrections. The only non-linear term in \Cref{eqn-euler-1d-disc1} is
+the term on the left hand side of the first equation. 
+Following \cite{gupta1993development},
+this is linearised using a fixed point iterative scheme for the momentum equation to give:
+
+\begin{equation}
+  \begin{array}{rcl}
+    \rho u_{i-\frac{1}{2}} (u_i + \delta u_i - u_{i-1} - \delta u_{i-1}) &=&
+                   - (p_i + \delta p_i - p_{i-1} - \delta p_{i-1} ) \\[8pt]
+    \rho u_{i-\frac{1}{2}} (\delta u_i - \delta u_{i-1}) +
+    (\delta p_i - \delta p_{i-1}) &=&
+    -\rho u_{i-\frac{1}{2}} (u_i - u_{i-1}) -
+    (p_i - p_{i-1}) \\[8pt]
+    &=& R_i^u
+  \end{array}
+  \label{eqn-euler-1d-disc2}
+\end{equation}
+
+We have also followed \cite{gupta1993development} in using a finite difference
+discretisation for the momentum equation.
+
+For the continuity equation, we use a finite volume discretisation to give
+\begin{equation}
+  \begin{array}{rcl}
+    A_{i+1}\rho u_{i+1} - A_{i}\rho u_{i} &=& 0 \\[8pt]
+    A_{i+1}\rho \delta u_{i+1} - A_{i}\rho \delta u_{i} &=&
+    -(A_{i+1}\rho u_{i+1} - A_{i}\rho u_{i}) \\[8pt]
+    &=& R_i^p
+  \end{array}
+  \label{eqn-euler-1d-disc3}
+\end{equation}
+
+Where $R_u^i$ and $R_p^i$ are the errors in satisfying the flow equations at node $i$,
+these are usually called the residuals.
+
+We must also linearise the incompressible inlet boundary condition from \Cref{eqn-Bernoulli}:
+
+\begin{equation}
+  \begin{array}{rcl}
+    p_1 + \delta p_1 + \frac{1}{2} \rho (u_1 + \delta u_1) ^2 &=& P_0 \\[8pt]
+          \delta p_1 + \rho u_1 \delta u _1&=& P_0 - p_1 - \frac{1}{2} \rho u_1^2 \\[8pt]
+          \delta p_1 + \rho u_1 \delta u_1 &=& R^u_1
+  \end{array}
+  \label{eqn-incomp-in-disc1}
+\end{equation}
+
+The exit boundary condition is simply:
+\begin{equation}
+  \delta p_n = p_{exit} - p_n
+  \label{eqn-incomp-ex-disc1}
+\end{equation}
+
+
+Collecting together the discrete momentum and continuity equations leads to a set of
+simultaneous equations that can be expressed in block matrix form as:
+
+
+\begin{equation}
+  \begin{pmatrix}
+    A^u + B^{u_1} & D^x + B^{p_1} \\
+    M^x           & B^{p_n} \\
+  \end{pmatrix}
+  \begin{pmatrix}
+    \ket{\delta u} \\
+    \ket{\delta p}
+  \end{pmatrix}
+  = 
+  \begin{pmatrix}
+    \ket{R^u} \\
+    \ket{R^p}
+  \end{pmatrix}
+  \label{eqn-implicit-01}
+\end{equation}
+
+Where
+\begin{itemize}
+    \item $A^u$ is the matrix containing the discrete convection operator 
+                for the $u$ momentum equation.
+    \item $B^{u_1}$ and $B^{p_1}$ are the the entries for the discretied inlet velocity boundary condition.
+    \item $D^x$ is the discrete pressure gradient operator.
+    \item $M^x$ is the the discrete continuity operator.
+    \item $B^{p_n}$ is the the entry for the discretised outlet pressure boundary condition.
+    \item $R^u$ and $R^p$ are the residuals of the momentum and continuity equations.
+\end{itemize}
+
+\Cref{fig-i16-cpl-sparse} shows the sparsity pattern for an implicit coupled incompressible
+matrix with 16 mesh nodes.
+Row 0 corresponds to the inlet boundary condition.
+Rows 1-15 are the momentum equations up to the exit node.
+Rows 16-30 are the continuity equations starting at the inlet node.
+Row 31 is the exit boundary condition.
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[width=0.60\textwidth]{i16_cpl_sparse.png}
+  \end{center}
+  \caption{Incompressible nozzle with 16 stations, sparsity pattern for coupled matrix.}
+  \label{fig-i16-cpl-sparse}
+\end{figure}
+
+
+\Cref{tab-imp-incomp} provides details for a range of mesh sizes for
+incompressible implicit matrices. The dimensions of the Hermitian matrix are do the symmetrised
+matrix needed by HHL. The number of unitaries are derived from the decomposition of
+the Hermitian matrix into Pauli strings.
+The number of CFD iterations are those required to reduce the residuals and 
+corrections to less than $1 \times 10^{-12}$.
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{c c c c c c c}
+    \toprule
+    Nstations & Hermitian matrix &  $\lambda_{min}$ & $\lambda_{max}$ & $\kappa$ & Nunitaries & CFD iterations \\
+    \midrule
+     8   &   32x32     &$7.9\times10^{-2}$ & 3.32      & 42.1     & 128   &  5  \\
+     16  &   64x64     &$3.9\times10^{-2}$ & 3.36      & 86.1     & 316   &  5  \\
+     32  &  128x128    &$1.9\times10^{-2}$ & 3.38      & 173      & 740   &  5  \\
+     64  &  256x256    &$9.6\times10^{-3}$ & 3.39      & 348      & 1,752 &  5  \\
+    \bottomrule
+  \end{tabular}
+  \caption{Incompressible implicit matrices.
+           Dimensions, eigenvalue range, condition number and number of unitaries in LCU.
+           Sampled after at end of run. Area contraction = 10\%.}
+  \label{tab-imp-incomp}
+\end{table}
+
+
+
+% Compressible Coupled
+% --------------------
+\subsubsection{Compressible coupled solver}
+\label{subsubsec-comp-couple}
+
+For compressible flows, the implicit discretisation combines the gas law and energy equations
+to give:
+
+\begin{equation}
+  \begin{array}{rcl}
+    p_i + \delta p_i &=& R (\rho_i + \delta \rho_i)(T_0 - \frac{1}{2c_p}(u_i + \delta u_i)^2) \\[8pt]
+                     &=& R\rho_i(T_0 - \frac{1}{2c_p}(u_i^2 + 2 u_i \delta u_i)) +
+                         R \delta \rho_i (T_0 - \frac{1}{2c_p}u_i^2) \\[8pt]
+                     &=& R\rho_i t_i + \frac{R}{c_p} \rho_i u_i \delta u_i + Rt_i \delta \rho_i 
+  \end{array}
+  \label{eqn-euler-1d-disc4}
+\end{equation}
+
+Collecting the terms together gives:
+\begin{equation}
+  \begin{array}{rcl}
+   -\frac{R}{c_p} \rho_i u_i \delta u_i + \delta p_i - Rt_i \delta \rho_i &=& R\rho_i t_i - \delta p_i \\[8pt]
+      &=& R_{\rho}^i
+  \end{array}
+  \label{eqn-euler-1d-disc5}
+\end{equation}
+
+There is one further aspect to the implementation of the gas law which is due to the fact
+that the continuity control volumes are {\it downwinded} as shown in \Cref{fig-nozzle-p-disc}.
+To maintain stability at supersonic Mach numbers the perfect gas must compensate for this by
+using an upwinded effective pressure:
+
+\begin{equation}
+    \rho = \frac{1}{Rt} p_{eff}
+  \label{eqn-peff1}
+\end{equation}
+
+For Mach numbers less than 2, this is discretised as \cite{gupta1993development}:
+
+\begin{equation}
+   p_{eff,i} = p_{i-1} + a_0(p_i - p_{i-1}) + \frac{a_1}{2} (p_i - p_{i-2})
+  \label{eqn-peff2}
+\end{equation}
+
+Where
+\begin{equation}
+  \begin{array}{rcl}
+    a_0 &=& \frac{0.8}{3} (\frac{4}{M^2} - 1) \\[8pt]
+    a_1 &=& 1.0 - a_0
+  \end{array}
+  \label{eqn-peff3}
+\end{equation}
+
+Where $M$ is the local maximum Mach number between stations $i$ and $i-1$.
+For low subsonic flow, $a_0=1$ and $a_1 = 01$ giving $p_{eff,i} = p_i$, i.e. no upwinding.
+
+For the implicit discretisation, only the first order upwinding correction is retained.
+Hence, \Cref{eqn-euler-1d-disc5} becomes:
+
+\begin{equation}
+   -\frac{R}{c_p} \rho_i u_i \delta u_i + \delta p_i - Rt_i \delta \rho_i = 
+    R\rho_i t_i - \delta p_{i-1} - a_0(\delta p_i - \delta p_{i-1}) \\
+  \label{eqn-euler-1d-disc6}
+\end{equation}
+
+We must also linearise the compressible inlet boundary condition from \Cref{eqn-energy}:
+
+\begin{equation}
+  \begin{array}{rcl}
+    t_1 + \delta t_1 + \frac{1}{2c_p} (u_1 + \delta u_1) ^2 &=& T_0 \\[8pt]
+    t_1 + \delta t_1 + \frac{1}{c_p} u_1 \delta u_1 &=& T_0 - \frac{1}{2c_p} \rho u_1^2 \\[8pt]
+    t_1 + \delta t_1 + \frac{1}{c_p} u_1 \delta u_1 &=& R^u_1
+  \end{array}
+  \label{eqn-comp-in-disc1}
+\end{equation}
+
+Linearising \Cref{eqn-t-p-isen-2} gives:
+\begin{equation}
+  \begin{array}{rcl}
+    t_1 + \delta t_1 &=& T_0 \left( \frac{p_1}{P_0} \right ) ^{\frac{\gamma-1}{\gamma}}
+                             \left(1 + \frac{\delta p_1}{p_1} \right ) ^{\frac{\gamma-1}{\gamma}} \\[8pt]
+                     &=& T_0 \left( \frac{p_1}{P_0} \right ) ^{\frac{\gamma-1}{\gamma}}
+                             \left(1 + \frac{\gamma-1}{\gamma}\frac{\delta p_1}{p_1} \right )
+  \end{array}
+  \label{eqn-t-p-isen-3}
+\end{equation}
+
+Combining \Cref{eqn-comp-in-disc1} and \Cref{eqn-t-p-isen-3} gives:
+\begin{equation}
+  \begin{array}{rcl}
+     \frac{1}{c_p} u_1 \delta u_1 + 
+     \frac{T_0}{p_1} \left( \frac{p_1}{P_0} \right ) ^{\frac{\gamma-1}{\gamma}} \frac{\gamma-1}{\gamma}\delta p_1  &=&
+     T_0 -T_0 \left( \frac{p_1}{P_0} \right ) ^{\frac{\gamma-1}{\gamma}} - \frac{1}{2c_p} \rho u_1^2 \\[8pt]
+     \frac{1}{c_p} u_1 \delta u_1 +
+     \frac{T_0}{p_1} \left( \frac{p_1}{P_0} \right ) ^{\frac{\gamma-1}{\gamma}} \frac{\gamma-1}{\gamma}\delta p_1 &=& R^u_1
+  \end{array}
+  \label{eqn-comp-in-disc2}
+\end{equation}
+
+The exit boundary condition is the same as \Cref{eqn-incomp-ex-disc1}.
+
+
+The fixed point iteration means that the compressible discretisation is the same as the 
+compressible one except that the local density is used rather than the constant one.
+The compressible continuity equation is straightforward application of corrections to the
+velocity and density. This leads to a coupled compressible matrix of the form:
+
+\begin{equation}
+  \begin{pmatrix}
+    A^u + B^{u_1} & D^x + B^{p_1} & 0        & 0 \\
+    M^u           & B^{p_n}       & M^{\rho} & 0 \\
+    L^u           & L^p           & L^{\rho} & 0 \\
+    0             & 0             & 0        & I \\
+  \end{pmatrix}
+  \begin{pmatrix}
+    \ket{\delta u}    \\
+    \ket{\delta p}    \\
+    \ket{\delta \rho} \\
+    \ket{\psi}        \\
+  \end{pmatrix}
+  = 
+  \begin{pmatrix}
+    \ket{R^u} \\
+    \ket{R^p} \\
+    \ket{R^{\rho}} \\
+    \ket{0} \\
+  \end{pmatrix}
+  \label{eqn-implicit-02}
+\end{equation}
+
+where the newly introduced terms are:
+\begin{itemize}
+    \item $L^u$, $L^p$ and $L^\rho$ are the coefficients from the gas law discretisation.
+    \item $M^{\rho}$ are the additional terms from the dicretisation of $\rho$ in the 
+                continuity equation.
+    \item $I$ is a diagonal block that is required to extend the matrix so that it has a 
+              full rank equal to a power of 2. $\ket{\psi}$ are the corresponding entries in
+              the state vector and the matrix solution ensures $\ket{\psi} = \ket{0}$.
+              In practice the diagonal entries in I are set to have the same order as the
+              other diagonal entries so as not to skew the eigenvalues.
+\end{itemize}
+
+\Cref{fig-c16-cpl-sparse} shows the sparsity pattern for an implicit coupled compressible
+matrix with 16 mesh nodes.
+
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=0.60\textwidth]{c16_cpl_sparse.png}
+  \end{center}
+  \caption{Compressible nozzle with 16 stations, sparsity pattern for coupled matrix.}
+  \label{fig-c16-cpl-sparse}
+\end{figure}
+
+\Cref{tab-imp-comp} provides details for a range of mesh sizes for
+compressible implicit  matrices. The dimensions of the Hermitian matrix are do the symmetrised
+matrix needed by HHL. The number of unitaries are derived from the decomposition of
+the Hermitian matrix into Pauli strings.
+The number of CFD iterations are those required to reduce the residuals and 
+corrections to less than $1 \times 10^{-12}$.
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{c c c c c c c}
+    \toprule
+    Nstations & Hermitian matrix &  $\lambda_{min}$ & $\lambda_{max}$ & $\kappa$ & Nunitaries & CFD iterations \\
+    \midrule
+     8   &   64x64     &$1.9\times10^{-2}$ & 3.01      & 157      & 416   &  96    \\  
+     16  &  128x128    &$8.9\times10^{-3}$ & 3.28      & 369      & 1,024 &  177   \\  
+     32  &  256x256    &$3.7\times10^{-3}$ & 3.51      & 941      & 2,432 &  410   \\  
+     64  &  512x512    &$1.4\times10^{-3}$ & 3.65      & 2,556    & 5,632 &  1,004 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Compressible implicit matrices. 
+           Dimensions, eigenvalue range, condition number and unitaries in LCU.
+           Sampled after 100 iterations. Pressure ratio = 0.75}
+  \label{tab-imp-comp}
+\end{table}
+
+From the above derivation, it can be seen that there are additional highly non-linear 
+terms in the compressible discretisation, particularly for the effective pressure.
+Whilst it is possible to recursively linearise these, it tends to produce an unstable
+discretisation. Indeed it is often necessary to apply relaxation to the initial coupled 
+iterations and perform some pre-SIMPLE iterations to provide a better initial guess. 
+The compressible implicit solver still provides a factor of 3-4 speed-up relative to the 
+compressible SIMPLE solver, see \Cref{tab-imp-comp} and \Cref{tab-pc-comp},
+but is much less effective than for incompressible flows.
+
+
+
+% Incompressible SIMPLE
+% ---------------------
+\subsubsection{Incompressible SIMPLE solver}
+\label{subsubsec-inco-simple}
+
+We follow the discretisation implemented in Appendix D of \cite{gupta1993development}.
+First of all we solve the momentum equation \Cref{eqn-euler-1d-disc2} using a Jacobi scheme:
+
+\begin{equation}
+  \delta u_i = \frac{R_u^i}{\rho u_{i-\frac{1}{2}}}
+  \label{eqn-simple-inco-umom}
+\end{equation}
+
+All the $\delta u_i$ terms are evaluated at each station before being used to update
+the velocities. This equation is solved on the classical device as the calculation
+of $\delta u_i$ can be overlapped with the matrix assembly. Note that the pressures 
+are not updated at this stage as they are done separately using the pressure correction 
+equation. The SIMPLE algorithm falls into a broader class of {\it segregated} solves.
+
+To solve the continuity equation, the momentum equation is assumed to have been solved,
+allowing the velocity and pressure corrections to be related by:
+
+\begin{equation}
+  \begin{array}{rcl}
+    \delta u_i &=& -\frac{1}{\rho u_{i-\frac{1}{2}}} (\delta p_i - \delta p_{i-1}) \\[8pt]
+    \delta u_{i+1} &=& -\frac{1}{\rho u_{i+\frac{1}{2}}} (\delta p_{i+1} - \delta p_{i})
+  \end{array}
+  \label{eqn-simple-inco-dudp}
+\end{equation}
+
+Note that the first equation is based on the momentum equation for station $i$ and
+the second equation on the one at for station $i+1$.
+These equations can be substituted into the continuity equation \Cref{eqn-euler-1d-disc3}
+at station $i$ to give
+
+\begin{equation}
+    -\frac{A_{i+1}}{u_{i+\frac{1}{2}}} (\delta p_{i+1} - \delta p_{i})
+    +\frac{A_{i}}{u_{i-\frac{1}{2}}} (\delta p_{i} - \delta p_{i-1}) = R_p^i 
+  \label{eqn-simple-inco-pceqn1}
+\end{equation}
+
+Setting $a_i = \frac{A_{i}}{u_{i-\frac{1}{2}}}$, \Cref{eqn-simple-inco-pceqn1} can
+be written as:
+
+\begin{equation}
+    -a_{i}\delta p_{i-1} + (a_{i} + a_{i+1})\delta p_{i} - a_{i+1}\delta p_{i+1}
+    = R_p^i 
+  \label{eqn-simple-inco-pceqn2}
+\end{equation}
+
+This leads to a matrix equation of the form $A^p \ket{\delta p} = \ket{R^p}$
+which has the sparsity pattern shown \Cref{fig-i16-sim-sparse}.
+
+
+\begin{figure}[h]
+  \begin{center}
+    \includegraphics[width=0.60\textwidth]{i16_sim_sparse.png}
+  \end{center}
+  \caption{Incompressible nozzle with 16 stations, sparsity pattern for pressure correction matrix.}
+  \label{fig-i16-sim-sparse}
+\end{figure}
+
+Once the pressure correction has been solved, $\ket{\delta p}$ is used to an update to the
+velocity field using corrections according to \Cref{eqn-simple-inco-dudp}.
+Since the continuity equation is linear for incompressible flows, this results in a 
+velocity field that exact satisfies continuity. This step is also completed on the
+classical device as it does not require a matrix solution. 
+
+\Cref{tab-pc-incomp} provides details for a range of mesh sizes for 
+incompressible pressure corrections matrices. 
+The dimensions of the Hermitian matrix are do the symmetrised
+matrix needed by HHL. The number of unitaries are derived from the decomposition of
+the Hermitian matrix into Pauli strings.
+The number of CFD iterations are those required to reduce the residuals and 
+corrections to less than $1 \times 10^{-12}$.
+
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{c c c c c c c}
+    \toprule
+    Nstations & Hermitian matrix &  $\lambda_{min}$ & $\lambda_{max}$ & $\kappa$ & Nunitaries & CFD iterations \\
+    \midrule
+     8   &   16x16     &$1.4\times10^{-1}$ & 3.18      & 23.3     & 24  & 194   \\
+     16  &   32x32     &$3.5\times10^{-2}$ & 3.36      & 97.4     & 56  & 389   \\
+     32  &   64x64     &$8.7\times10^{-3}$ & 3.56      & 410      & 128 & 765   \\
+     64  &  128x128    &$2.1\times10^{-3}$ & 3.81      & 1,747    & 288 & 1,491 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Incompressible pressure correction matrices.
+           dimensions, eigenvalue range, condition number and unitaries in LCU.
+           Sampled after after 10 iterations. Area contraction = 10\%.}
+  \label{tab-pc-incomp}
+\end{table}
+
+
+
+% Compressible SIMPLE
+% -------------------
+\subsubsection{Compressible SIMPLE solver}
+\label{subsubsec-comp-simple}
+
+The compressible pressure correction equation follows the derivation of the
+incompressible equation except that the additional terms in $\delta \rho$ are 
+replaced by $\delta p$ terms using the the gas law. 
+We follow \cite{gupta1993development} and used a fully upwinded effective pressure
+for the gas law.
+This produces a pressure correction matrix with the same sparsity pattern as 
+\Cref{fig-i16-sim-sparse}.
+
+
+\Cref{tab-pc-comp} provides details for a range of mesh sizes for 
+compressible pressure corrections matrices. 
+The dimensions of the Hermitian matrix are do the symmetrised
+matrix needed by HHL. The number of unitaries are derived from the decomposition of
+the Hermitian matrix into Pauli strings.
+The number of CFD iterations are those required to reduce the residuals and 
+corrections to less than $1 \times 10^{-12}$.
+
+\begin{table}[h]
+  \centering
+  \begin{tabular}{c c c c c c c}
+    \toprule
+    Nstations & Hermitian matrix &  $\lambda_{min}$ & $\lambda_{max}$ & $\kappa$ & Nunitaries & CFD iterations \\
+    \midrule
+     8   &   16x16     & $4.8\times10^{-1}$ & 6.89    & 14.3     & 32  & 424   \\
+     16  &   32x32     & $1.9\times10^{-1}$ & 8.22    & 42.9     & 80  & 700   \\
+     32  &   64x64     & $7.1\times10^{-2}$ & 9.25    & 131      & 192 & 1,449 \\
+     64  &  128x128    & $3.0\times10^{-2}$ & 10.1    & 341      & 448 & 2,884 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Compressible pressure correction matrices.
+           Dimensions, eigenvalue range, condition number and unitaries in LCU
+           for the compressible nozzle.(sampled after 100 iterations).}
+  \label{tab-pc-comp}
+\end{table}
+

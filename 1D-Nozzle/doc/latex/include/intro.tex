@@ -1,0 +1,30 @@
+%
+% Introduction
+% ------------
+\section{Introduction}
+
+The 1D nozzle solver provides a flexible Python interface for testing quantum linear equation
+solvers on fluid flow type problems.
+The core CFD solver, written in C, is linked via a library to enable developers to focus on their
+quantum solver.
+
+The benefit of the nozzle system is that it allows researchers to investigate the feedback between the
+inner linear system, solved using a quantum algorithm, and the outer classical non-linear update.
+\cite{lapworth2022implicit} has shown the performance of HHL \cite{harrow2009quantum}, relative to a classical linear
+solver, must be assessed within the context of the convergence of the non-linear CFD solver.
+For HHL, there is a specific iterative feed-forward mechanism associated with the 
+under-resolution of the eigenvalue spectrum.
+Similar behaviour is anticipated with other linear solvers such as 
+Quantum Singular Value Transformation (QSVT)
+\cite{martyn2021grand, gilyen2019quantum, dong2021efficient}
+, albeit as a result of different mechanisms.
+
+Although the solver is only 1 dimensional, there are a range of solver options that can be
+used to generate matrices with up to 8 diagonals using the coupled compressible solver. The standard
+pressure correction solver has 3 diagonals. The coupled incompressible solver has 6 diagonals and
+gives rapid convergence which is useful when emulating the quantum circuit is time-consuming.
+
+The plotting routines enable easy comparison of classical and quantum results.
+
+
+

@@ -1,0 +1,586 @@
+%
+% Core CFD solver
+% -------------
+\section{Core CFD solver}
+\label{sec-corecfd}
+
+The core CFD solver is written in C with a Python wrapper written using ctypes.
+The C code is self contained and does not rely on any third party libraries other
+than those provided by the compiler. e.g. libm on Linux.
+
+
+%
+% C Build
+% -------
+\subsection{Building the C code}
+\label{subsec-buildc}
+
+
+\subsubsection{Linux based systems}
+The C code can be built as a stand-alone executable or as a library to be linked to a Python code.
+
+\begin{itemize}
+\item To make the C executable, type {\tt make} in the {\tt src} directory.
+The executable {\tt nozzle} is placed in the {\tt bin} directory.
+
+\item To make the C library, type {\tt make lib} in the {\tt src} directory.
+The shared object library {\tt libnozzle.so} is placed in the {\tt lib} directory.
+
+\item To rebuild from scratch , type  {\tt make clean} in the {\tt src} directory.
+\end{itemize}
+
+
+\subsubsection{Windows based systems}
+
+Not cuurently supported.
+
+
+
+%
+% Running the code
+% ----------------
+\subsection{Running the code}
+\label{subsec-run}
+
+There are 3 modes of running the code include in the distribution.
+
+\begin{itemize}
+\item To run the C-code directly type: {\tt [path]/bin/nozzle -i [path]inputfile.xml}.
+
+      Typing {\tt [path]/bin/nozzle -h} gives a short list of the input options.
+
+      Sample input files are included in the {\tt input} directory of the distribution.
+      Note each input file can be run in the four possible combinations of incompressible/compressible flow and
+      SIMPLE/coupled solvers. Which combination is run is determined by the {\tt setup} section of the
+      input file as described in \Cref{subsec-ifile}.
+
+\item To run the C solver as a library call from Python type: {\tt [path]/script/run\_cprog.py -i [path]inputfile.xml}.
+
+      This simply demonstrates the infrastructure used to call the C library from within a Python script.
+
+\item To use the C library to set-up matrices to be solved using the {\tt scipy} linear algebra routine type:
+      {\tt [path]/script/run\_pysolve.py -i [path]inputfile.xml}.  
+\end{itemize}
+
+The final option provides a template for replacing the {\tt scipy} linear solver with a quantum linear equation solver
+as described in \Cref{subsec-qles}.
+
+
+%
+% Python C interface
+% ------------------
+\subsection{Python-C interface}
+\label{subsec-py2c}
+There are two layers to the Python-C interface:
+\begin{itemize}
+  \item Data instantiation when python is the main routine.
+  \item Data exchange to {\it get} a matrix and a right-hand side vector, 
+        and to {\it put} a solution vector.
+\end{itemize}
+
+Both of these depend on sharing C structures with the Python code.
+
+
+%
+% Data instantiation
+% ------------------
+\subsubsection{Data instantiation}
+\label{subsubsec-data-inst}
+
+\Cref{list-noz-cstruct} shows the high level structure used by the C solver.
+As can be seen, this is a structure of structures which, collectively, contain all the
+data used by the solver. These are not further defined here as they are not needed by
+the Python layer.
+
+\begin{lstlisting}[numbers=left, language=C, caption=C master structure for nozzle data, label=list-noz-cstruct]
+typedef struct
+{
+        SETUP   *setup;
+        MESH    *mesh;
+        FLOW    *flow;
+        SOLVER  *solver;
+        FILES   *files;
+        ARRAYS  *arrays;
+        HISTORY *history;
+} NOZZLE;
+\end{lstlisting}
+
+In fact, the Python layer needs only manage the pointer which it can do by treating it
+as a {\tt void}. The only data passed between the C and Python layers is the memory address of
+the nozzle pointer.
+\Cref{list-noz-pyinst} gives code segments which call C routines to instantiate an empty nozzle structure;
+load data from an input file; and, free the structure after the calculations have been completed.
+Note that the call to {\tt c\_lib.c2py\_noz\_create} on line 2 passes the pointer by reference. 
+This is needed because the memory for the pointer is allocated with the C code, so it must return
+a pointer to a pointer.
+The variable {\tt i\_cptr} on line 4 is the name of the input file that is read as a command 
+line option.
+
+
+\begin{lstlisting}[numbers=left, language=Python, caption=Python instantiation., label=list-noz-pyinst]
+    noz_cptr = c_void_p()
+    c_lib.c2py_noz_create(byref(noz_cptr))
+    ...
+    c_lib.c2py_read_input(i_cptr, noz_cptr)
+    ...
+    c_lib.c2py_noz_free(noz_cptr)
+\end{lstlisting}
+
+%
+% Data exchange
+% -------------
+\subsubsection{Data exchange}
+\label{subsubsec-data-exch}
+
+In order to investigate quantum linear solvers, it is necessary to share matrices and vectors
+between the C and Python layers. This is done by using a common structure definition.
+\Cref{list-smat-cstruct} shows the C structure and \Cref{list-smat-pystruct} shows the
+corresponding Python structure. Both used the same compressed row format.
+
+\begin{lstlisting}[numbers=left, language=C, caption=C sparse matrix structure., label=list-smat-cstruct]
+typedef struct
+{
+        int32_t nr;
+        int32_t nc;
+        int32_t nnz;
+        int32_t *col;
+        int32_t *rst;
+        double  *val;
+        double  *b;
+} SMATRIX;
+\end{lstlisting}
+
+Note that integers are declared as {\tt int32} to ensure both the C and Python layers use 
+32 bit integers.
+Note that the sparse matrix structures also includes the residual, or right hand side vector, {\tt b}.
+This is a convenience as both the matrix and vector can be retrieved in a single call.
+It is also convenient on the C side as the matrix entries and residuals are computed at the
+same time.
+The solution vector is computed separately and, therefore, not included in the structure.
+
+
+\begin{lstlisting}[numbers=left, language=Python, caption=Python sparse matrix structure., label=list-smat-pystruct]
+class SMATRIX(Structure):
+      _fields_ = [("nr",  c_int32),
+                  ("nc",  c_int32),
+                  ("nnz", c_int32),
+                  ("col", POINTER(c_int32)),
+                  ("rst", POINTER(c_int32)),
+                  ("val", POINTER(c_double)),
+                  ("b",   POINTER(c_double))
+                 ]
+      _defaults_ = {"nr" : 0,
+                    "nc" : 0,
+                    "nnz": 0,
+                    "col": None,
+                    "rst": None,
+                    "val": None,
+                    "b"  : None}
+\end{lstlisting}
+
+
+\Cref{list-get-smat} shows how to {\it get} a matrix and vector from the C code and
+convert them to a scipy sparse matrix and numpy vector.
+This is taken from the script {\tt run\_pysolve.py}
+On line 10, the {\tt scipy.sparse.linalg} spsolve routine is used to solve for {\tt x}.
+Lines 12-13 show how to {\it put} the solution vector back into the C code.
+
+
+\begin{lstlisting}[numbers=left, language=Python, caption=Code segment for Python-C matrix and vector exchange., label=list-get-smat]
+    S = SMATRIX()
+    c_lib.c2py_get_smat(noz_cptr, byref(S))
+
+    col = np.ctypeslib.as_array(S.col, shape=(S.nnz,))
+    rst = np.ctypeslib.as_array(S.rst, shape=(S.nr+1,))
+    val = np.ctypeslib.as_array(S.val, shape=(S.nnz,))
+    b   = np.ctypeslib.as_array(S.b,   shape=(S.nr,))
+
+    SP = sparse.csr_matrix((val, col, rst),shape=(S.nr, S.nc), dtype=np.double)
+    x  = spsolve(SP, b)
+
+    xc = x.ctypes.data_as(POINTER(c_double))
+    rc = c_lib.c2py_put_soln(noz_cptr, xc)
+\end{lstlisting}
+
+As can be seen, the above code segments are independent of the CFD flow type and solution scheme.
+These are contained within the C layer and controlled via a single input file.
+
+
+
+%
+% QLES solver
+% ----------
+\subsection{Linking to a quantum linear equation solver}
+\label{subsec-qles}
+
+In principle, linking to a quantum solver is {\it just} a matter of replacing the call to
+{\tt spsolve} in line 10 of \Cref{list-get-smat} with a call to the equivalent quantum solver.
+However, the quantum solver is likely to need a lot of additional input, including additional
+data such as phase factors for QSVT.
+The user has a choice to hardwire them for initial development testing, add them as additonal 
+input options to the python script, or include them in an auxillary input file.
+
+Note that the call to {\tt spsolve} is within an iterative loop. Only data that changes as part of the
+non-linear outer iterations should be included within the loop.
+Data input and set-up should be outside the loop.
+
+It is recommended to make a copy of the file {\tt run\_pysolve.py} and use that as a template 
+for the QLES solver.
+
+
+%
+% Input file
+% ----------
+\subsection{Input file}
+\label{subsec-ifile}
+
+There are sample input files in the {\tt input} directory of the distribution.
+The files are structured to include options for all combinations of flow type and solver.
+The choice to be run is controlled by the {\tt setup} section as described in \Cref{subsubsec-ifile-overview}.
+If files need to be simplified, the sections for the unused options can be removed. 
+
+%
+% overview
+% --------
+\subsubsection{Overview}
+\label{subsubsec-ifile-overview}
+
+The input file has been designed for all 4 combinations of flow regime and
+solver type to be held in a single file with two binary flags to select which option is executed.
+This adds some verbosity to the file but eases the number of files that need to be managed.
+This does not prevent separate files being used for separate cases if that is preferred.
+The high-level structure of the file is shown in  \Cref{list-xml01}.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file main sections., label=list-xml01]
+<?xml version="1.0" encoding="UTF-8"?>
+<nozzle>
+  <setup>
+    <casename>nozzle</casename>
+    <compressible>0</compressible>
+    <couple>1</couple>
+  </setup>
+
+  <mesh>...</mesh>
+
+  <incompressible>
+    <flow>...</flow>
+    <solver>
+      <simple>...</simple>
+      <couple>...</couple>
+    </solver>
+  </incompressible>
+
+  <compressible>
+    <flow>...</flow>
+    <solver>
+      <simple>...</simple>
+      <couple>...</couple>
+    </solver>
+  </compressible>
+</nozzle>
+\end{lstlisting}
+
+
+The {\tt setup} section contains a case name and binary variables to
+toggle the flow and solver types. 
+This section in \Cref{list-xml01} specifies incompressible flow using the coupled solver.
+See \Cref{subsubsec-naming} for how the case name is used to set the names of the 
+output files based on the setup.
+
+The {\tt mesh} section is common to all setup combinations and is described below.
+There are separate sections for incompressible and compressible flow with
+each containing {\tt flow} and {\tt solver} sections.
+The solver sections contain separate {\tt simple} and {\tt couple} sections for
+each solver type. As shown below, the variables in each section depend on the
+set-up and where variables have the same name they generally have different values,
+according to the section they are in. 
+
+All variables have default values. Those variables that use the default values can
+be omitted from the input file for brevity, if desired.
+
+
+%
+% mesh
+% ----
+\subsubsection{Mesh data}
+
+\Cref{list-xml02} shows the {\tt mesh} section of the input file.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file mesh section., label=list-xml02]
+  <mesh>
+    <nx>16</nx>
+    <ain>1.0</ain>
+    <da>-0.1</da>
+  </mesh>
+\end{lstlisting}
+
+The variables are:
+\begin{itemize}
+  \item{\tt nx} -  the number of axial stations in the mesh, this value is used as part
+                   of the output file names.
+  \item{\tt ain} - for incompressible flows this is the inlet area of the channel.
+                   For compressible flows this is a scale factor for the inlet area,
+                   which  can be used to scale the matrix entries but is usually set to {\tt 1.0}.
+  \item{\tt da}  - the area contraction at the midpoint of the channel for incompressible flows.
+                   This is specified as a fraction of the inlet area and is negative for an
+                   area contraction and positive for an area expansion.
+\end{itemize}
+
+
+%
+% incomp-simple
+% -------------
+\subsubsection{Incompressible flow, SIMPLE solver}
+\label{subsubsec-insi-xml}
+
+\Cref{list-xml03} shows the section of the input file for incompressible flow with the SIMPLE solver.
+Note that all flow variables are non-dimensional.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file for incompressible + SIMPLE solver., label=list-xml03]
+  <incompressible>
+    <flow>
+      <rho>1.0</rho>                   <!-- constant density -->
+      <bc>
+        <ptin>1.5</ptin>               <!-- inlet total pressure -->
+        <pex>0.95</pex>                <!-- exit static pressure -->
+      </bc>
+    </flow>
+
+    <solver>
+      <simple>
+        <niters>2000</niters>          <!-- number of iterations -->
+        <relaxu>1.0</relaxu>           <!-- u-relaxation factor -->
+        <relaxp>1.0</relaxp>           <!-- p-relaxation factor -->
+        <toleru>1.0e-12</toleru>       <!-- u-convergence tolerance -->
+        <tolerp>1.0e-12</tolerp>       <!-- p-convergence tolerance -->
+      </simple>
+    </solver>
+  </incompressible>
+\end{lstlisting}
+
+The variables are defined in \Cref{list-xml03} and should be self-explanatory.
+As shown in \Cref{tab-pc-incomp}, the number of iterations varies considerably
+for different mesh sizes. 
+{\tt niters} is the maximum number of iterations, the calculation will terminate
+when it reaches either {\tt niters} or both of the convergence tolerances have been meet.
+
+
+%
+% incomp-couple
+% -------------
+\subsubsection{Incompressible flow, coupled solver}
+\label{subsubsec-inco-xml}
+
+\Cref{list-xml04} shows the section of the input file for incompressible flow with the coupled solver.
+Note that all flow variables are non-dimensional.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file for incompressible + coupled solver., label=list-xml04]
+  <incompressible>
+    <flow>...  </flow>
+
+    <solver>
+      <couple>
+        <niters>10</niters>            <!-- number of iterations -->
+        <presim>0</presim>             <!-- number SIMPLE iterations before coupled solver -->
+        <relaxc>1.0</relaxc>           <!-- relaxation factor applied to all variables -->
+        <rrampc>0</rrampc>             <!-- number of iterations over which to ramp relaxc -->
+        <tolerc>1.0e-12</tolerc>       <!-- convergence tolerance for all variables -->
+      </couple>
+    </solver>
+  </incompressible>
+\end{lstlisting}
+
+The {\tt flow} is not included as it is identical to \Cref{list-xml03}.
+The number of iterations is as before, but has a much smaller value as \Cref{tab-imp-comp}
+shows that number of iterations is less than 10 for all mesh sizes.
+A single convergence tolerance, {\tt tolerc}, is used for the coupled set of equations.
+The variables {\tt presim}, {\tt relaxc} and {\tt rrampc} are needed for the compressible 
+coupled solver and are described in \Cref{subsubsec-coco-xml}. 
+The values of these variables in \Cref{list-xml04} are the defaults and these can be omitted
+from the input file for incompressible flows.
+
+
+%
+% comp-simple
+% -------------
+\subsubsection{Compressible flow, SIMPLE solver}
+\label{subsubsec-cosi-xml}
+
+\Cref{list-xml05} shows the section of the input file for compressible flow with the SIMPLE solver.
+Note that all flow variables are non-dimensional.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file for incompressible + SIMPLE solver., label=list-xml05]
+  <compressible>
+    <flow>
+      <bc>
+        <ptin>1.5</ptin>               <!-- inlet total pressure -->
+        <min>0.8</min>                 <!-- inlet Mach number -->
+        <pex>0.75</pex>                <!-- exit static pressure -->
+      </bc>
+      <gaslaw>
+        <gamma>1.4</gamma>             <!-- ratio of specific heats -->
+        <cp>3.5</cp>                   <!-- specific heat at constant pressure -->
+        <rgas>1.0</rgas>               <!-- perfect gas constant -->
+        <upwind>2</upwind>             <!-- 1, 2,3 for 1st, 2nd and 3-pt density upwinding -->
+      </gaslaw>
+    </flow>
+
+    <solver>
+      <simple>
+        <niters>5000</niters>          <!-- number of iterations -->
+        <relaxu>1.0</relaxu>           <!-- u-relaxation factor -->
+        <relaxp>1.0</relaxp>           <!-- p-relaxation factor -->
+        <toleru>1.0e-12</toleru>       <!-- u-convergence tolerance -->
+        <tolerp>1.0e-12</tolerp>       <!-- p-convergence tolerance -->
+      </simple>
+    </solver>
+  </compressible>
+\end{lstlisting}
+
+%
+% comp-couple
+% -------------
+\subsubsection{Compressible flow, coupled solver}
+\label{subsubsec-coco-xml}
+
+\Cref{list-xml06} shows the section of the input file for compressible flow with the coupled solver.
+Note that all flow variables are non-dimensional.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file for incompressible + coupled solver., label=list-xml06]
+  <compressible>
+    <flow>...</flow>
+
+    <solver>
+      <couple>
+        <niters>2000</niters>          <!-- number of iterations -->
+        <presim>10</presim>            <!-- number SIMPLE iterations before coupled solver -->
+        <relaxc>0.75</relaxc>          <!-- relaxation factor applied to all variables -->
+        <rrampc>20</rrampc>            <!-- number of iterations over which to ramp relaxc -->
+        <tolerc>1.0e-12</tolerc>       <!-- convergence tolerance for all variables -->
+      </couple>
+    </solver>
+  </compressible>
+\end{lstlisting}
+
+
+
+
+
+%
+% Output file
+% -----------
+\subsection{Output files}
+\label{subsec-ofile}
+
+\subsubsection{File naming convention}
+\label{subsubsec-naming}
+
+There are two output files: a convergence history and a flow solution file. 
+The naming convention for both files is \textit{casename\_nx\_ffss.ext}, where:
+\begin{itemize}
+\item \textit{casename} is the user specified name in the input file.
+\item \textit{nx} is the number of stations.
+\item \textit{ff} is a two character identifier for the flow type: \textit{in} for
+      incompressible flow or \textit{co} for compressible flow.
+\item \textit{ss} is a two character identifier for the solver type: \textit{si} for
+      the SIMPLE solver or \textit{co} for the coupled solver.
+\item \textit{ext} is the three character file extension: \textit{hst} for the convergence
+      history file and \textit{sol} for the solution file.
+\end{itemize}
+
+For example, the history file for an incompressible SIMPLE case named 'nozzle with 16 stations is
+{\tt nozzle\_016\_insi.hst}.
+If cases with more that 999 stations are needed, modify the routine {\tt noz\_files} to change the
+format statement in the {\tt snprintf} statements to increase '3' to the number of digits needed.
+
+
+
+\subsubsection{Convergence history}
+\label{subsubsec-form-conv}
+
+The contents of the convergence history file depend on the flow type.
+In both cases the file contains the root mean square (RMS) of the changes in the flow variables between
+the current iteration and the previous one; and, the residual errors, e.g $R^u$, of the flow equations
+at the start of the iteration.
+Both should reduce towards the convergence tolerance as the iterations proceed.
+For incompressible cases, the history file contains the RMS changes for $u$ and $p$ and the RMS resisuals
+of the momentum and continuity equations.
+For compressible flows, the RMS changes in density and residual of the gas equation are also included.
+Sample files for both flow types are listed below, showing the first 9 iterations.
+
+See \Cref{subsec-res-conv} for details on how to plot the convergence history of a single run and
+to compare the convergence histories of multiple runs.
+
+\begin{verbatim}
+head nozzle_016_insi.hst
+"iter",  "du_rms",        "dp_rms",        "resu_rms",      "resp_rms"
+ 1,  0.00000000e+00,  9.95624279e-02,  0.00000000e+00,  1.62406810e-02
+ 2,  3.42680753e-02,  9.21423809e-02,  3.56263102e-02,  2.32527299e-02
+ 3,  4.09420463e-03,  1.56536726e-03,  4.31829249e-03,  1.56084554e-03
+ 4,  3.82501330e-03,  2.49477798e-03,  4.06783477e-03,  8.77342756e-04
+ 5,  3.60318337e-03,  2.36292698e-03,  3.84504091e-03,  8.24039930e-04
+ 6,  3.39492043e-03,  2.23327519e-03,  3.63437959e-03,  7.76310997e-04
+ 7,  3.19933160e-03,  2.11074512e-03,  3.43527772e-03,  7.31505443e-04
+ 8,  3.01557136e-03,  1.99495898e-03,  3.24709921e-03,  6.89419128e-04
+ 9,  2.84285931e-03,  1.88554307e-03,  3.06924290e-03,  6.49871476e-04
+
+
+head nozzle_016_coco.hst
+"iter", "du_rms",    "dp_rms",     "dr_rms",    "resu_rms",   "resp_rms",   "resr_rms"
+ 1,  2.29801e-01,  5.03378e-02,  2.88455e-02,  1.07241e-02,  2.03448e-02,  2.03448e-02
+ 2,  2.58647e-01,  1.51207e-01,  1.17747e-01,  5.94100e-03,  5.40709e-03,  5.40709e-03
+ 3,  8.72627e-01,  5.95568e-01,  4.75178e-01,  4.18458e-03,  6.25604e-03,  6.25604e-03
+ 4,  3.39289e-01,  2.75104e-01,  2.11024e-01,  1.35157e-01,  2.57616e-01,  2.57616e-01
+ 5,  1.13501e+00,  5.81302e-01,  3.79980e-01,  1.81180e-01,  5.31819e-02,  5.31819e-02
+ 6,  4.67940e-01,  2.83047e-01,  2.98249e-01,  1.93246e-01,  3.24966e-01,  3.24966e-01
+ 7,  2.68325e-01,  1.12835e-01,  9.90863e-02,  5.66960e-02,  1.91540e-01,  1.91540e-01
+ 8,  2.00619e-01,  1.24138e-01,  7.90677e-02,  2.57842e-02,  6.30679e-02,  6.30679e-02
+ 9,  3.47459e-01,  2.28170e-01,  1.64274e-01,  8.91253e-03,  1.89085e-02,  1.89085e-02
+\end{verbatim}
+
+Note that the precision of the compressible file has been truncated for the purposes of 
+illustrating the file format. The actual file has the same precision as the incompressible file.
+
+
+\subsubsection{Flow field}
+\label{subsubsec-form-flow}
+
+As with the convergence histories, the format of the solution files depends on whether
+incompressible or compressible flow has been modelled.
+Sample files for both flow types are listed below, showing the solution with 8 axial
+stations.
+
+See \Cref{subsec-res-flow} for details on how to plot the flow field of a single run and
+to compare the flow fields of multiple runs.
+
+
+\begin{verbatim}
+head nozzle_008_insi.sol 
+"index", "x",        "area",    "density",  "velocity",  "pressure"
+ 1,  0.00000000,  1.00000000,  1.00000000,  0.99352315,  1.00645586
+ 2,  0.14285714,  0.95002040,  1.00000000,  1.05396039,  0.93273107
+ 3,  0.28571428,  0.91778253,  1.00000000,  1.09468920,  0.87557899
+ 4,  0.42857142,  0.90196380,  1.00000000,  1.12077187,  0.83702077
+ 5,  0.57142857,  0.90196380,  1.00000000,  1.12039273,  0.83109312
+ 6,  0.71428571,  0.91778253,  1.00000000,  1.10510955,  0.84489365
+ 7,  0.85714285,  0.95002040,  1.00000000,  1.06576098,  0.88937807
+ 8,  1.00000000,  1.00000000,  1.00000000,  1.01185327,  0.95000000
+
+
+head nozzle_008_cosi.sol 
+"index", "x",     "area", "density","velocity","pressure",    "temp",  "Mach no"
+ 1,  0.000000,  1.038230,  0.733619,  0.903193,  0.648126,  0.883463,  0.812124
+ 2,  0.142857,  1.002814,  0.673123,  1.019130,  0.569949,  0.851624,  0.933340
+ 3,  0.285714,  1.005860,  0.594401,  1.150608,  0.479892,  0.810871,  1.079907
+ 4,  0.428571,  1.039360,  0.524993,  1.260737,  0.405785,  0.772934,  1.211963
+ 5,  0.571428,  1.099747,  0.448136,  1.395860,  0.318806,  0.721653,  1.388716
+ 6,  0.714285,  1.185954,  0.441964,  1.312472,  0.369072,  0.753916,  1.277511
+ 7,  0.857142,  1.298492,  0.629288,  0.841891,  0.630211,  0.898745,  0.750540
+ 8,  1.000000,  1.438982,  0.791263,  0.604183,  0.750000,  0.947851,  0.524487
+
+\end{verbatim}
+
+As before, the precision of the output has been truncated for the purposes of illustrating 
+the file format.
+
+

@@ -1,0 +1,761 @@
+%
+% Core CFD solver
+% -------------
+\section{Core CFD solver}
+\label{sec-corecfd}
+
+The core CFD solver is written in C with a Python wrapper written using ctypes.
+The C code is self contained and does not rely on any third party libraries other
+than those provided by the compiler. e.g. libm on Linux.
+
+
+%
+% C Build
+% -------
+\subsection{Building the C code}
+\label{subsec-buildc}
+
+
+\subsubsection{Linux based systems}
+The C code can be built as an executable by simply typing {\tt make} in the {\tt src}
+directory. This runs a completly classical calcualtion using the Doolittle lower-upper
+decompostion algorithm (see \S3.2.10 of \cite{golub2013matrix}) to solve the matrix equations.
+The executable {\tt nozzle} is placed in the {\tt bin} directory.
+
+To make the C library, type {\tt make lib} in the {\tt src} directory.
+The shared object library {\tt libnozzle.so} is placed in the {\tt lib} directory.
+
+To rebuild from scratch , type  {\tt make clean} in the {\tt src} directory.
+
+\subsubsection{Windows based systems}
+
+To be done later if needed.
+
+
+%
+% Python C interface
+% ------------------
+\subsection{Python-C interface}
+\label{subsec-py2c}
+There are two layers to the Python-C interface:
+\begin{itemize}
+  \item Data instantiation when python is the main routine.
+  \item Data exchange to {\it get} a matrix and a right-hand side vector, 
+        and to {\it put} a solution vector.
+\end{itemize}
+
+Both of these depend on sharing C structures with the Python code.
+
+
+%
+% Data instantiation
+% ------------------
+\subsubsection{Data instantiation}
+\label{subsubsec-data-inst}
+
+\Cref{list-noz-cstruct} shows the high level structure used by the C solver.
+As can be seen, this is a structure of structures which, collectively, contain all the
+data used by the solver. These are not further defined here as they are not needed by
+the Python layer.
+
+\begin{lstlisting}[numbers=left, language=C, caption=C master structure for nozzle data, label=list-noz-cstruct]
+typedef struct
+{
+        SETUP   *setup;
+        MESH    *mesh;
+        FLOW    *flow;
+        SOLVER  *solver;
+        FILES   *files;
+        ARRAYS  *arrays;
+        HISTORY *history;
+} NOZZLE;
+\end{lstlisting}
+
+In fact, the Python layer needs only manage the pointer which it can do by treating it
+as a {\tt void}. The only data passed between the C and Python layers is the memory address of
+the nozzle pointer.
+\Cref{list-noz-pyinst} gives code segements which call C routines to instantiate an empty nozzle structure;
+load data from an input file; and, free the structure after the calcualtions have been completed.
+Note that the call to {\tt c\_lib.c2py\_noz\_create} on line 2 passes the pointer by reference. 
+This is needed because the memory for the pointer is allocated with the C code, so it must return
+a pointer to a pointer.
+The variable {\tt i\_cptr} on line 4 is the name of the input file that is read as a command 
+line option.
+
+
+\begin{lstlisting}[numbers=left, language=Python, caption=Python instantiation., label=list-noz-pyinst]
+    noz_cptr = c_void_p()
+    c_lib.c2py_noz_create(byref(noz_cptr))
+    ...
+    c_lib.c2py_read_input(i_cptr, noz_cptr)
+    ...
+    c_lib.c2py_noz_free(noz_cptr)
+\end{lstlisting}
+
+%
+% Data exchange
+% -------------
+\subsubsection{Data exchange}
+\label{subsubsec-data-exch}
+
+In order to investigate quantum linear solvers, it is necessary to share matrices and vectors
+between the C and Python layers. This is done by using a common structure definition.
+\Cref{list-smat-cstruct} shows the C structure and \Cref{list-smat-pystruct} shows the
+corresponding Python structure. Both used the same compressed row format.
+
+\begin{lstlisting}[numbers=left, language=C, caption=C sparse matrix structure., label=list-smat-cstruct]
+typedef struct
+{
+        int32_t nr;
+        int32_t nc;
+        int32_t nnz;
+        int32_t *col;
+        int32_t *rst;
+        double  *val;
+        double  *b;
+} SMATRIX;
+\end{lstlisting}
+
+Note that integes are declared as {\tt int32} to ensure both the C and Python layers use 
+32 bit integers.
+Note that the sparse matrix structures also includes the residual, or right hand side vector, {\tt b}.
+This is a convenience as both the matrix and vector can be retrieved in a single call.
+It is also convient on the C side as the matrix entries and residuals are computed at the
+same time.
+The solution vector is computed separately and, therefore, not included in the structure.
+
+
+\begin{lstlisting}[numbers=left, language=Python, caption=Python sparse matrix structure., label=list-smat-pystruct]
+class SMATRIX(Structure):
+      _fields_ = [("nr",  c_int32),
+                  ("nc",  c_int32),
+                  ("nnz", c_int32),
+                  ("col", POINTER(c_int32)),
+                  ("rst", POINTER(c_int32)),
+                  ("val", POINTER(c_double)),
+                  ("b",   POINTER(c_double))
+                 ]
+      _defaults_ = {"nr" : 0,
+                    "nc" : 0,
+                    "nnz": 0,
+                    "col": None,
+                    "rst": None,
+                    "val": None,
+                    "b"  : None}
+\end{lstlisting}
+
+
+\Cref{list-get-smat} shows how to {\it get} a matrix and vector from the C code and
+convert them to a scipy sparse matrix and numpy vector.
+On line 10, the {\tt scipy.sparse.linalg} spsolve routine is used to solve for {\tt x}.
+It is here that calls to a quantum linear solver should replace line 10.
+Lines 12-13 show how to {\it put} the solution vector back into the C code.
+
+
+\begin{lstlisting}[numbers=left, language=Python, caption=Python-C matrix and vetor exchange., label=list-get-smat]
+    S = SMATRIX()
+    c_lib.c2py_get_smat(noz_cptr, byref(S))
+
+    col = np.ctypeslib.as_array(S.col, shape=(S.nnz,))
+    rst = np.ctypeslib.as_array(S.rst, shape=(S.nr+1,))
+    val = np.ctypeslib.as_array(S.val, shape=(S.nnz,))
+    b   = np.ctypeslib.as_array(S.b,   shape=(S.nr,))
+
+    SP = sparse.csr_matrix((val, col, rst),shape=(S.nr, S.nc), dtype=np.double)
+    x  = spsolve(SP, b)
+
+    xc = x.ctypes.data_as(POINTER(c_double))
+    rc = c_lib.c2py_put_soln(noz_cptr, xc)
+\end{lstlisting}
+
+As can be seen, the above code segments are independent of the CFD flow type and solution scheme.
+These are contained within the C layer and controlled via a single input file.
+
+
+
+
+%
+% Input file
+% ----------
+\subsection{Input file}
+\label{subsec-ifile}
+
+The input file has been designed for all 4 combinations of flow regime and
+solver type to be held in a single file with two binary flags to select which option is executed.
+This adds some verbosity to the file but eases the number of files that need to be managed.
+This does not prevent separate files being used for separate cases if that is preferred.
+The high-level stucture of the file is shown in  \Cref{list-xml01}.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file main sections., label=list-xml01]
+<?xml version="1.0" encoding="UTF-8"?>
+<nozzle>
+  <setup>
+    <casename>nozzle</casename>
+    <compressible>0</compressible>
+    <couple>1</couple>
+  </setup>
+
+  <mesh>...</mesh>
+
+  <incompressible>
+    <flow>...</flow>
+    <solver>
+      <simple>...</simple>
+      <couple>...</couple>
+    </solver>
+  </incompressible>
+
+  <compressible>
+    <flow>...</flow>
+    <solver>
+      <simple>...</simple>
+      <couple>...</couple>
+    </solver>
+  </compressible>
+</nozzle>
+\end{lstlisting}
+
+
+The {\tt setup} section contains a case name and binary variables to
+toggle the flow and solver types. 
+This section in \Cref{list-xml01} spcifies incompressible flow using the coupled solver.
+See \Cref{subsubsec-naming} for how the case name is used to set the names of the 
+output files based on the setup.
+
+The {\tt mesh} section is common to all setup combinations and is described below.
+There are separate sections for incompressible and compressible flow with
+each containing {\tt flow} and {\tt solver} sections.
+The solver sections contain separate {\tt simple} and {\tt couple} sections for
+each solver type. As shown below, the variables in seach section depend on the
+set-up and where variables have the same name they generally have different values,
+according to the section they are in. 
+
+All variables have default values. Those variables that use the default values can
+be omitted from the input file for brevity, if desired.
+
+
+%
+% mesh
+% ----
+\subsubsection{Mesh data}
+
+\Cref{list-xml02} shows the {\tt mesh} section of the input file.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file mesh section., label=list-xml02]
+  <mesh>
+    <nx>16</nx>
+    <ain>1.0</ain>
+    <da>-0.1</da>
+  </mesh>
+\end{lstlisting}
+
+The variables are:
+\begin{itemize}
+  \item{\tt nx} -  the number of axial stations in the mesh, this value is used as part
+                   of the output file names.
+  \item{\tt ain} - for incompressible flows this is the inlet area of the channel.
+                   For compressible flows this is a scale factor for the inlet area,
+                   which  can be used to scale the matrix entries but is usually set to {\tt 1.0}.
+  \item{\tt da}  - the area contraction at the midpoint of the channel for incompressible flows.
+                   This is specified as a fraction of the inlet area and is negative for an
+                   area contraction and positive for an area expansion.
+\end{itemize}
+
+
+%
+% incomp-simple
+% -------------
+\subsubsection{Incompressible flow, SIMPLE solver}
+\label{subsubsec-insi-xml}
+
+\Cref{list-xml03} shows the section of the input file for incompressible flow with the SIMPLE solver.
+Note that all flow variables are non-dimensional.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file for incompressible + SIMPLE solver., label=list-xml03]
+  <incompressible>
+    <flow>
+      <rho>1.0</rho>                   <!-- constant density -->
+      <bc>
+        <ptin>1.5</ptin>               <!-- inlet total pressure -->
+        <pex>0.95</pex>                <!-- exit static pressure -->
+      </bc>
+    </flow>
+
+    <solver>
+      <simple>
+        <niters>2000</niters>          <!-- number of iterations -->
+        <relaxu>1.0</relaxu>           <!-- u-relaxation factor -->
+        <relaxp>1.0</relaxp>           <!-- p-relaxation factor -->
+        <toleru>1.0e-12</toleru>       <!-- u-convergence tolerance -->
+        <tolerp>1.0e-12</tolerp>       <!-- p-convergence tolerance -->
+      </simple>
+    </solver>
+  </incompressible>
+\end{lstlisting}
+
+The variables are defined in \Cref{list-xml03} and should be self-explantory.
+As shown in \Cref{tab-pc-incomp}, the number of iterations varies considerably
+for different mesh sizes. 
+{\tt niters} is the maximum number of iterations, the calculation will terminate
+when it reaches either {\tt niters} or both of the convergence tolerances have been meet.
+
+
+%
+% incomp-couple
+% -------------
+\subsubsection{Incompressible flow, coupled solver}
+\label{subsubsec-inco-xml}
+
+\Cref{list-xml04} shows the section of the input file for incompressible flow with the coupled solver.
+Note that all flow variables are non-dimensional.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file for incompressible + coupled solver., label=list-xml04]
+  <incompressible>
+    <flow>...  </flow>
+
+    <solver>
+      <couple>
+        <niters>10</niters>            <!-- number of iterations -->
+        <presim>0</presim>             <!-- number SIMPLE iterations before coupled solver -->
+        <relaxc>1.0</relaxc>           <!-- relaxation factor applied to all variables -->
+        <rrampc>0</rrampc>             <!-- number of iterations over which to ramp relaxc -->
+        <tolerc>1.0e-12</tolerc>       <!-- convergence tolerance for all variables -->
+      </couple>
+    </solver>
+  </incompressible>
+\end{lstlisting}
+
+The {\tt flow} is not included as it is identical to \Cref{list-xml03}.
+The number of iterations is as before, but has a much smaller value as \Cref{tab-imp-comp}
+shows that number of iterations is less than 10 for all mesh sizes.
+A single convergence tolerance, {\tt tolerc}, is used for the coupled set of equations.
+The variables {\tt presim}, {\tt relaxc} and {\tt rrampc} are needed for the commpressible 
+coupled solver and are described in \Cref{subsubsec-coco-xml}. 
+The values of these variables in \Cref{list-xml04} are the defaults and these can be omitted
+from the input file for incompressible flows.
+
+
+%
+% comp-simple
+% -------------
+\subsubsection{Compressible flow, SIMPLE solver}
+\label{subsubsec-cosi-xml}
+
+\Cref{list-xml05} shows the section of the input file for compressible flow with the SIMPLE solver.
+Note that all flow variables are non-dimensional.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file for incompressible + SIMPLE solver., label=list-xml05]
+  <compressible>
+    <flow>
+      <bc>
+        <ptin>1.5</ptin>               <!-- inlet total pressure -->
+        <min>0.8</min>                 <!-- inlet Mach number -->
+        <pex>0.75</pex>                <!-- exit static pressure -->
+      </bc>
+      <gaslaw>
+        <gamma>1.4</gamma>             <!-- ratio of specific heats -->
+        <cp>3.5</cp>                   <!-- specific heat at constant pressure -->
+        <rgas>1.0</rgas>               <!-- perfect gas constant -->
+        <upwind>2</upwind>             <!-- 1, 2,3 for 1st, 2nd and 3-pt density upwinding -->
+      </gaslaw>
+    </flow>
+
+    <solver>
+      <simple>
+        <niters>5000</niters>          <!-- number of iterations -->
+        <relaxu>1.0</relaxu>           <!-- u-relaxation factor -->
+        <relaxp>1.0</relaxp>           <!-- p-relaxation factor -->
+        <toleru>1.0e-12</toleru>       <!-- u-convergence tolerance -->
+        <tolerp>1.0e-12</tolerp>       <!-- p-convergence tolerance -->
+      </simple>
+    </solver>
+  </compressible>
+\end{lstlisting}
+
+%
+% comp-couple
+% -------------
+\subsubsection{Compressible flow, coupled solver}
+\label{subsubsec-coco-xml}
+
+\Cref{list-xml06} shows the section of the input file for compressible flow with the coupled solver.
+Note that all flow variables are non-dimensional.
+
+\begin{lstlisting}[numbers=left, language=xml, caption=Input file for incompressible + coupled solver., label=list-xml06]
+  <compressible>
+    <flow>...</flow>
+
+    <solver>
+      <couple>
+        <niters>2000</niters>          <!-- number of iterations -->
+        <presim>10</presim>            <!-- number SIMPLE iterations before coupled solver -->
+        <relaxc>0.75</relaxc>          <!-- relaxation factor applied to all variables -->
+        <rrampc>20</rrampc>            <!-- number of iterations over which to ramp relaxc -->
+        <tolerc>1.0e-12</tolerc>       <!-- convergence tolerance for all variables -->
+      </couple>
+    </solver>
+  </compressible>
+\end{lstlisting}
+
+
+
+
+
+
+
+%
+% Output file
+% -----------
+\subsection{Output files}
+\label{subsec-ofile}
+
+\subsubsection{File naming convention}
+\label{subsubsec-naming}
+
+
+\subsubsection{Convergence history}
+
+\begin{verbatim}
+head nozzle_016_insi.hst
+ "iter",    "du_rms",        "dp_rms",        "resu_rms",      "resp_rms"
+       1,  0.00000000e+00,  9.95624279e-02,  0.00000000e+00,  1.62406810e-02
+       2,  3.42680753e-02,  9.21423809e-02,  3.56263102e-02,  2.32527299e-02
+       3,  4.09420463e-03,  1.56536726e-03,  4.31829249e-03,  1.56084554e-03
+       4,  3.82501330e-03,  2.49477798e-03,  4.06783477e-03,  8.77342756e-04
+       5,  3.60318337e-03,  2.36292698e-03,  3.84504091e-03,  8.24039930e-04
+       6,  3.39492043e-03,  2.23327519e-03,  3.63437959e-03,  7.76310997e-04
+       7,  3.19933160e-03,  2.11074512e-03,  3.43527772e-03,  7.31505443e-04
+       8,  3.01557136e-03,  1.99495898e-03,  3.24709921e-03,  6.89419128e-04
+       9,  2.84285931e-03,  1.88554307e-03,  3.06924290e-03,  6.49871476e-04
+
+
+head nozzle_016_coco.hst
+ "iter",    "du_rms",        "dp_rms",        "dr_rms",        "resu_rms",      "resp_rms",      "resr_rms"
+       1,  2.29801472e-01,  5.03378733e-02,  2.88455811e-02,  1.07241561e-02,  2.03448806e-02,  2.03448806e-02
+       2,  2.58647616e-01,  1.51207581e-01,  1.17747726e-01,  5.94100496e-03,  5.40709896e-03,  5.40709896e-03
+       3,  8.72627759e-01,  5.95568342e-01,  4.75178803e-01,  4.18458075e-03,  6.25604850e-03,  6.25604850e-03
+       4,  3.39289567e-01,  2.75104011e-01,  2.11024162e-01,  1.35157130e-01,  2.57616762e-01,  2.57616762e-01
+       5,  1.13501509e+00,  5.81302896e-01,  3.79980018e-01,  1.81180582e-01,  5.31819754e-02,  5.31819754e-02
+       6,  4.67940882e-01,  2.83047550e-01,  2.98249049e-01,  1.93246723e-01,  3.24966389e-01,  3.24966389e-01
+       7,  2.68325351e-01,  1.12835482e-01,  9.90863426e-02,  5.66960365e-02,  1.91540164e-01,  1.91540164e-01
+       8,  2.00619531e-01,  1.24138301e-01,  7.90677782e-02,  2.57842575e-02,  6.30679329e-02,  6.30679329e-02
+       9,  3.47459069e-01,  2.28170304e-01,  1.64274229e-01,  8.91253621e-03,  1.89085473e-02,  1.89085473e-02
+\end{verbatim}
+
+
+\subsubsection{Flow field}
+
+
+\begin{verbatim}
+head nozzle_008_insi.sol 
+ "index",   "x",              "area",           "density",        "velocity",       "pressure"
+       1,   0.000000000000,   1.000000000000,   1.000000000000,   0.993523159530,   1.006455865739
+       2,   0.142857142857,   0.950020408330,   1.000000000000,   1.053960391407,   0.932731084197
+       3,   0.285714285714,   0.917782533010,   1.000000000000,   1.094689201214,   0.875578935799
+       4,   0.428571428571,   0.901963806674,   1.000000000000,   1.120771879503,   0.837020733417
+       5,   0.571428571429,   0.901963806674,   1.000000000000,   1.120392737189,   0.831093143312
+       6,   0.714285714286,   0.917782533010,   1.000000000000,   1.105109556375,   0.844893603265
+       7,   0.857142857143,   0.950020408330,   1.000000000000,   1.065760986025,   0.889378059307
+       8,   1.000000000000,   1.000000000000,   1.000000000000,   1.011853275042,   0.950000000000
+
+
+head nozzle_008_cosi.sol 
+ "index",   "x",              "area",           "density",        "velocity",       "pressure",      "temperature",     "Mach number"
+       1,   0.000000000000,   1.038230000000,   0.733619782375,   0.903193400752,   0.648126005149,   0.883463097262,   0.812124348048
+       2,   0.142857142857,   1.002814260410,   0.673123758632,   1.019130836234,   0.569949292400,   0.851624619805,   0.933344173160
+       3,   0.285714285714,   1.005860945596,   0.594401481541,   1.150608383065,   0.479892135665,   0.810871478403,   1.079909852927
+       4,   0.428571428571,   1.039360638051,   0.524993930600,   1.260737918885,   0.405785801244,   0.772934271412,   1.211963429362
+       5,   0.571428571429,   1.099747418567,   0.448136546469,   1.395860600602,   0.318806256501,   0.721653311955,   1.388716919186
+       6,   0.714285714286,   1.185954430578,   0.441964137651,   1.312472857024,   0.369072475193,   0.753916428511,   1.277511179218
+       7,   0.857142857143,   1.298492284496,   0.629288389527,   0.841891783150,   0.630211714950,   0.898745460781,   0.750540095256
+       8,   1.000000000000,   1.438982057613,   0.791263024446,   0.604183850640,   0.750000000000,   0.947851696375,   0.524487206364
+
+\end{verbatim}
+
+
+
+%
+% Running the code
+% ----------------
+\subsection{Running the code}
+
+
+\subsection{Direct C interface}
+
+\begin{verbatim}
+cat run_cprog.py
+#!/usr/bin/python3
+
+##
+# @file    run_cprog.py
+# @brief   Simple python interface to get input file and run C code
+# @details Tests use of Python ctype interface for receiving and passing
+#          pointers to a C \ref NOZZLE structure and processing return
+#          codes. Use of ctypes functionality uses ctypes prefix to 
+#          aid understanding.
+# @author  Leigh Lapworth <leigh.lapworth@rolls-royce.com>
+# @date    19th Dec 2022
+##
+
+import sys, getopt
+import ctypes
+import sys
+import pathlib
+import time
+
+###########################################################
+#   line number macro                                     #
+###########################################################
+def LINE():
+    return sys._getframe(1).f_lineno
+
+###########################################################
+#   exit on error                                         #
+###########################################################
+def error_exit(error, line):
+    message = error + ' in ' + str(sys.argv[0]) + ':' + str(line)
+    sys.exit(str(message))
+
+###########################################################
+#   get command line arguments                            #
+###########################################################
+def read_args():
+    inputfile = ''
+    argv = sys.argv[1:]
+
+    try:
+       opts, args = getopt.getopt(argv,"hi:",["ifile="])
+    except getopt.GetoptError:
+       print('Input error:\n\t%s -h -i <inputfile>' % str(sys.argv[0]))
+       sys.exit(2)
+    for opt, arg in opts:
+       if opt == '-h':
+          print('Usage:\n\t%s -h -i <inputfile>' % str(sys.argv[0]))
+          sys.exit()
+       elif opt in ("-i", "--ifile"):
+          inputfile = arg
+
+    return inputfile
+
+###########################################################
+#   main routine                                          #
+###########################################################
+if __name__ == "__main__":
+    libname = pathlib.Path().absolute()
+    print("libname: ", libname)
+
+#   load shared object library using ctypes
+#   ---------------------------------------
+    if sys.platform.startswith("win"):
+       c_lib = ctypes.CDLL(libname / "nozzle.dll")
+    else:
+       c_lib = ctypes.CDLL(libname / "../lib/libnozzle.so")
+
+#   get name of input file
+#   ----------------------
+    inputfile = read_args()
+    if not inputfile:
+       error_exit("No input file specified", LINE())
+
+#   create empty nozzle structure
+#   -----------------------------
+    noz_cptr = ctypes.c_void_p()
+    rc = c_lib.c2py_noz_create(ctypes.byref(noz_cptr))
+    if rc:
+       error_exit("Traceback error", LINE())
+
+#   read input file
+#   ---------------
+    i_cptr = inputfile.encode('utf-8')
+    c_lib.c2py_read_input.argtypes = [ctypes.c_char_p, ctypes.c_void_p]
+    rc = c_lib.c2py_read_input(i_cptr, noz_cptr)
+    if rc:
+       error_exit("Traceback error", LINE())
+
+#   initialise nozzle
+#   -----------------
+    rc = c_lib.c2py_noz_init(noz_cptr)
+    if rc:
+       error_exit("Traceback error", LINE())
+
+#   run entirely using C library
+#   ----------------------------
+    t1 = time.perf_counter()
+    rc = c_lib.c2py_run_c(noz_cptr)
+    t2 = time.perf_counter()
+    print(f"\nC solver took {t2-t1:0.4f} seconds")
+    if rc:
+       error_exit("Traceback error", LINE())
+
+#   free C memory associated with nozzle
+#   ------------------------------------
+    c_lib.c2py_noz_free(noz_cptr)
+
+    print("\nSuccessful completion\n")
+
+\end{verbatim}
+
+
+
+
+\begin{verbatim}
+cat run_pysolve.py
+#!/usr/bin/python3
+
+##
+# @file    run_pysolve.py
+# @brief   Hybrid Python-C code using C matrix assembly and Python matrix solver
+# @details Sparse matrices are passed across the interface from the C assembly
+#          routines. These can be for either SIMPLE of coupled discretisations,
+#          Python is unware of the matrix type and simply solves Ax=b and
+#          returns x to the C library.
+#          In this context, hybrid refers a classical C-Python nozzle solver.
+#          This provides the template for replacing the Python matrix solver
+#          with an emulated quantum linear equation solver.
+# @author  Leigh Lapworth <leigh.lapworth@rolls-royce.com>
+# @date    24th Dec 2022
+##
+
+import sys, getopt
+from   ctypes import *
+import sys
+import pathlib
+import numpy as np
+from   scipy import sparse
+from   scipy.sparse.linalg import spsolve
+
+#     Python ctypes sparse matrix structure - this must match the
+#     C \ref SMATRIX structure
+#     -----------------------------------------------------------
+class SMATRIX(Structure):
+      _fields_ = [("nr",  c_int32),
+                  ("nc",  c_int32),
+                  ("nnz", c_int32),
+                  ("col", POINTER(c_int32)),
+                  ("rst", POINTER(c_int32)),
+                  ("val", POINTER(c_double)),
+                  ("b",   POINTER(c_double))
+                 ]
+      _defaults_ = {"nr" : 0,  
+                    "nc" : 0,  
+                    "nnz": 0,
+                    "col": None, 
+                    "rst": None, 
+                    "val": None, 
+                    "b"  : None}
+
+###########################################################
+#   line number macro                                     #
+###########################################################
+def LINE():
+    return sys._getframe(1).f_lineno
+
+###########################################################
+#   exit on error                                         #
+###########################################################
+def error_exit(error, line):
+    message = error + ' in ' + str(sys.argv[0]) + ':' + str(line)
+    sys.exit(str(message))
+
+###########################################################
+#   get command line arguments                            #
+###########################################################
+def read_args():
+    inputfile = ''
+    argv = sys.argv[1:]
+
+    try:
+       opts, args = getopt.getopt(argv,"hi:",["ifile="])
+    except getopt.GetoptError:
+       print('Input error:\n\t%s -h -i <inputfile>' % str(sys.argv[0]))
+       sys.exit(2)
+    for opt, arg in opts:
+       if opt == '-h':
+          print('Usage:\n\t%s -h -i <inputfile>' % str(sys.argv[0]))
+          sys.exit()
+       elif opt in ("-i", "--ifile"):
+          inputfile = arg
+
+    return inputfile
+
+###########################################################
+#   main routine                                          #
+###########################################################
+if __name__ == "__main__":
+    libname = pathlib.Path().absolute()
+    print("libname: ", libname)
+
+#   load shared object library using ctypes
+#   ---------------------------------------
+    if sys.platform.startswith("win"):
+       c_lib = CDLL(libname / "nozzle.dll")
+    else:
+       c_lib = CDLL(libname / "../lib/libnozzle.so")
+
+#   get name of input file
+#   ----------------------
+    inputfile = read_args()
+    if not inputfile:
+       error_exit("No input file specified", LINE())
+
+#   create empty nozzle structure
+#   -----------------------------
+    noz_cptr = c_void_p()
+    rc = c_lib.c2py_noz_create(byref(noz_cptr))
+    if rc:
+       error_exit("Traceback error", LINE())
+
+#   read input file
+#   ---------------
+    i_cptr = inputfile.encode('utf-8')
+    c_lib.c2py_read_input.argtypes = [c_char_p, c_void_p]
+    rc = c_lib.c2py_read_input(i_cptr, noz_cptr)
+    if rc:
+       error_exit("Traceback error", LINE())
+
+#   initialise nozzle
+#   -----------------
+    rc = c_lib.c2py_noz_init(noz_cptr)
+    if rc:
+       error_exit("Traceback error", LINE())
+
+#   run hybrid C-Python nozzle solver
+#   ---------------------------------
+    S = SMATRIX()
+    while(True):
+       rc = c_lib.c2py_get_smat(noz_cptr, byref(S))
+       if rc:
+          error_exit("Traceback error", LINE())
+
+       col = np.ctypeslib.as_array(S.col, shape=(S.nnz,))
+       rst = np.ctypeslib.as_array(S.rst, shape=(S.nr+1,))
+       val = np.ctypeslib.as_array(S.val, shape=(S.nnz,))
+       b   = np.ctypeslib.as_array(S.b,   shape=(S.nr,))
+
+       SP = sparse.csr_matrix((val, col, rst),shape=(S.nr, S.nc), dtype=np.double)
+       x  = spsolve(SP, b)
+
+       xc = x.ctypes.data_as(POINTER(c_double))
+       rc = c_lib.c2py_put_soln(noz_cptr, xc)
+       if rc:
+          error_exit("Traceback error", LINE())
+
+       done = c_bool()
+       c_lib.c2py_hist_chk(noz_cptr, byref(done))       # checks both convergence and max iters
+       if done:
+          break
+
+#   print and save solution
+#   ----------------------- */
+    c_lib.c2py_print_soln(noz_cptr)
+    c_lib.c2py_save_soln(noz_cptr)
+
+#   free C memory associated with nozzle
+#   ------------------------------------
+    c_lib.c2py_noz_free(noz_cptr)
+
+#   exit message
+#   ------------
+    print("\nSuccessful completion\n")
+
+\end{verbatim}

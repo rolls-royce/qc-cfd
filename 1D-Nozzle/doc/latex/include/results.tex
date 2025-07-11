@@ -1,0 +1,86 @@
+%
+% Results
+% -------
+\section{Analysing the results}
+\label{sec-results}
+
+
+%
+% Convergence
+% -----------
+\subsection{Convergence histories}
+\label{subsec-res-conv}
+
+Up to 5 convergence history files can be compared using the script
+{tt plot\_hist.py}. 
+As described in \Cref{subsubsec-form-conv} the format of the plot depends on
+the type of flow.
+
+\Cref{fig-plot-hst-coco} illustrates how to compare the convergence of the
+coupled compressible solver on three different meshes using the following command:
+
+\begin{verbatim}
+./plot_hist.py nozzle_008_coco.hst nozzle_016_coco.hst nozzle_032_coco.hst
+\end{verbatim}
+
+The file names are used as the legends for each line in the plot.
+
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=0.70\textwidth]{plot-hst-coco.png}
+  \end{center}
+  \caption{Convergence history plot for the coupled compressible solver on three different meshes.}
+  \label{fig-plot-hst-coco}
+\end{figure}
+
+
+
+%
+% Flow field
+% ----------
+\subsection{Flow field}
+\label{subsec-res-flow}
+
+Up to 5 flow solution files can be compared using the script
+{tt plot\_sol.py}. 
+As described in \Cref{subsubsec-form-flow} the format of the plot depends on
+the type of flow.
+
+\Cref{fig-plot-sol-coco} illustrates how to compare the solutions of the
+coupled compressible solver on three different meshes using the following command:
+
+\begin{verbatim}
+./plot_sol.py nozzle_008_coco.sol nozzle_016_coco.sol nozzle_032_coco.sol
+\end{verbatim}
+
+The plots illustrate how the shock wave becomes sharper as the resolution of the mesh increases.
+
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=0.70\textwidth]{plot-sol-coco.png}
+  \end{center}
+  \caption{Flow solution plot for the coupled compressible solver on three different meshes.}
+  \label{fig-plot-sol-coco}
+\end{figure}
+
+
+\Cref{fig-plot-sol-inco} illustrates how to compare the solutions of the
+coupled incompressible solver on three different meshes using the following command:
+
+\begin{verbatim}
+./plot_sol.py nozzle_008_inco.sol nozzle_016_inco.sol nozzle_032_inco.sol
+\end{verbatim}
+
+This illustrates different nature of the incompressible where the flow is symmetric about the 
+centre of the nozzle.
+
+\begin{figure}[ht]
+  \begin{center}
+    \includegraphics[width=0.70\textwidth]{plot-sol-inco.png}
+  \end{center}
+  \caption{Flow solution plot for the coupled incompressible solver on three different meshes.}
+  \label{fig-plot-sol-inco}
+\end{figure}
+
+
+

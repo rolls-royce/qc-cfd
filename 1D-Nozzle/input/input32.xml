@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nozzle>
+  <setup>
+    <casename>nozzle</casename>       <!-- setup details are appended to case name -->
+    <compressible>0</compressible>       <!--  0/1 = incompressible/compressible -->
+    <couple>1</couple>                   <!--  0/1 = simple/coupled -->
+  </setup>
+
+  <mesh>
+    <nx>32</nx>
+    <ain>1.0</ain>
+    <da>-0.1</da>                        <!-- area contraction for incompressible cases -->
+  </mesh>
+
+  <incompressible>
+    <flow>
+      <rho>1.0</rho>
+      <bc>
+        <ptin>1.5</ptin>
+        <pex>0.95</pex>
+      </bc>
+    </flow>
+
+    <solver>
+      <simple>
+        <niters>2000</niters>
+        <relaxu>1.0</relaxu>           <!-- u-relaxation factor -->
+        <relaxp>1.0</relaxp>           <!-- p-relaxation factor -->
+        <toleru>1.0e-12</toleru>       <!-- u-convergence tolerance -->
+        <tolerp>1.0e-12</tolerp>       <!-- p-convergence tolerance -->
+      </simple>
+      <couple>
+        <niters>10</niters>
+        <presim>0</presim>             <!-- number SIMPLE iterations before coupled solver -->
+        <relaxc>1.0</relaxc>           <!-- relaxation factor for coupled solver applied to all variables -->
+        <rrampc>0</rrampc>             <!-- number of iterations over which to ramp coupled relaxation factor -->
+        <tolerc>1.0e-12</tolerc>       <!-- convergence tolerance for coupled solver -->
+      </couple>
+    </solver>
+  </incompressible>
+
+  <compressible>
+    <flow>
+      <bc>
+        <ptin>1.5</ptin>
+        <min>0.8</min>
+        <pex>0.75</pex>
+      </bc>
+      <gaslaw>
+        <gamma>1.4</gamma>                 <!-- gamma, cp, rgas used for incompressible cases -->
+        <cp>3.5</cp>
+        <rgas>1.0</rgas>
+        <upwind>2</upwind>                 <!-- 1, 2,3 for 1st, 2nd and 3-pt density upwinding -->
+      </gaslaw>
+    </flow>
+
+    <solver>
+      <simple>
+        <niters>5000</niters>
+        <relaxu>1.0</relaxu>           <!-- u-relaxation factor -->
+        <relaxp>1.0</relaxp>           <!-- p-relaxation factor -->
+        <toleru>1.0e-12</toleru>       <!-- u-convergence tolerance -->
+        <tolerp>1.0e-12</tolerp>       <!-- p-convergence tolerance -->
+      </simple>
+      <couple>
+        <niters>2000</niters>
+        <presim>10</presim>           <!-- number SIMPLE iterations before coupled solver -->
+        <relaxc>0.70</relaxc>          <!-- relaxation factor for coupled solver applied to all variables -->
+        <rrampc>100</rrampc>           <!-- number of iterations over which to ramp coupled relaxation factor -->
+        <tolerc>1.0e-12</tolerc>       <!-- convergence tolerance for coupled solver -->
+      </couple>
+    </solver>
+  </compressible>
+</nozzle>
+

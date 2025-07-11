@@ -1,0 +1,10 @@
+\nomenclatureentry{a$c_p$@[{$c_p$}]\begingroup specific heat capacity at constant pressure, $c_p = \frac{\gamma}{\gamma-1} R$\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$c_v$@[{$c_v$}]\begingroup specific heat capacity at constant volume\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$\gamma$@[{$\gamma$}]\begingroup ratio of specific heats, $\gamma = \frac{c_p}{c_v}$\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$M$@[{$M$}]\begingroup Mach number = velocity/speed of sound, $M = \frac{u}{\sqrt{\gamma R t}}$\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$p$@[{$p$}]\begingroup static pressure\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$P_0$@[{$P_0$}]\begingroup stagnation pressure\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$R$@[{$R$}]\begingroup perfect gas constant, $R = c_p - c_v$\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$t$@[{$t$}]\begingroup static temperature\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$T_0$@[{$T_0$}]\begingroup stagnation temperature\nomeqref {0}|nompageref}{3}
+\nomenclatureentry{a$u$@[{$u$}]\begingroup axial velocity\nomeqref {0}|nompageref}{3}

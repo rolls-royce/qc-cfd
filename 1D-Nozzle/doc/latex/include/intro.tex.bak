@@ -1,0 +1,18 @@
+%
+% Introduction
+% ------------
+\section{Introduction}
+
+To be written - notes and references so far
+
+HHL \cite{harrow2009quantum}
+Quantum Singular Value Transformation (QSVT)
+\cite{martyn2021grand, gilyen2019quantum, dong2021efficient}
+VQLS \cite{bravo2019variational} - NISQ
+
+\cite{lapworth2022implicit} has shown the perfomance of HHL, relative to a classical linear
+solver, must be assessed within the context of the convergence of the non-linear CFD solver.
+For HHL, there is a specific iterative feed-forward mechanism associated with the 
+under-resolution of the eigenvalue spectrum.
+Similar behaviour is anticipated with other linear solvers, albeit as a result of different mechanisms.
+
