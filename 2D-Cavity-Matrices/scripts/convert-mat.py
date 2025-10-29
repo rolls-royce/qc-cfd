@@ -7,6 +7,7 @@ from typing import Dict, Literal, Optional
 
 import h5py
 import numpy as np
+import scipy as sp
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
@@ -341,6 +342,7 @@ def convert_cases(
                     )
 
             out_file = output_root / f"{name}.h5"
+            sp.sparse.save_npz(output_root / f"{name}.npz", A, compressed=True)
 
             if dry_run:
                 log.info("[dry-run] would write %s", out_file)
@@ -392,6 +394,8 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
 
 
 def main(argv: Optional[list[str]] = None) -> None:
+    h5_conf = h5py.get_config()
+    h5_conf.complex_names = ('real', 'imag')
     args = _parse_args(argv)
 
     # Logging
