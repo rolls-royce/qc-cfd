@@ -423,3 +423,34 @@ int  c2py_print_soln(void *py_noz)
 
      return rc;
 }
+
+/******************************************************************************
+ *  c2py_set_bcs - set inlet velocity and temperature and exit pressure       *
+ ******************************************************************************/
+/**
+ * \brief   Set inlet velocity and temperature and exit pressure
+ * \details Wrapper for \ref noz_set_bcs
+ *
+ * \param[in]
+ *          py_noz  \ref NOZZLE structure to hold nozzle parameters.
+ *
+ * \return  error code
+ * \author  Leigh Lapworth <leigh.lapworth@rolls-royce.com>
+ * \date    12th Nov 2025
+ */
+
+int  c2py_set_bcs(void *py_noz)
+{
+     NOZZLE *nozzle = (NOZZLE*) py_noz;
+     int    rc;
+
+/*   read input file
+     --------------- */
+     rc = noz_set_bcs(nozzle);
+     if(rc){
+       error_traceback("c2py_set_bcs", __FILE__, __LINE__);
+     }
+
+     return rc;
+}
+

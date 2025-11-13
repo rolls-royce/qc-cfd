@@ -1,0 +1,12 @@
+# Ignore hidden files
+.*
+# Include .gitignore
+!.gitignore
+# Ignore object files
+*.o*
+*.so*
+# Ignore binaries
+bin
+lib
+# Python cache
+__pycache__

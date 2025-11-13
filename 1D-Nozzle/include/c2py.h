@@ -64,6 +64,7 @@ EXPORT_SYMBOL int  c2py_put_soln   (void*, double*);
 EXPORT_SYMBOL int  c2py_hist_chk   (void*, bool*);
 EXPORT_SYMBOL int  c2py_save_soln  (void*);
 EXPORT_SYMBOL int  c2py_print_soln (void*);
+EXPORT_SYMBOL int  c2py_set_bcs    (void*);
 
 
 #ifdef __cplusplus

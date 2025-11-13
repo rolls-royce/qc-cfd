@@ -149,7 +149,9 @@ if __name__ == "__main__":
 #   ---------------------------------
     S = SMATRIX()
     while(True):
-       rc = c_lib.c2py_get_smat(noz_cptr, byref(S))
+       c_lib.c2py_set_bcs(noz_cptr)                     # apply boundary conditions
+
+       rc = c_lib.c2py_get_smat(noz_cptr, byref(S))     # get linear system matrix and RHS
        if rc:
           error_exit("Traceback error", LINE())
 
