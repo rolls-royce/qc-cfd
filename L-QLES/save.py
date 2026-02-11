@@ -85,15 +85,15 @@ def case_save_bin(a, b, x, q, status, degen, order, casename):
 
     s = csr_matrix(a)
     rank = s.shape
-    nr   = np.long(rank[0])
-    nc   = np.long(rank[1])
-    nnz  = np.long(s.nnz)
+    nr   = np.int64(rank[0])
+    nc   = np.int64(rank[1])
+    nnz  = np.int64(s.nnz)
 
-    real = np.array([True], dtype=np.bool)
-    dims = np.array([nr,nc,nnz], dtype=np.long)
+    real = np.array([True], dtype=bool)
+    dims = np.array([nr,nc,nnz], dtype=np.int64)
     rval = np.array([s.data],    dtype=np.double)
-    rstt = np.array([s.indptr],  dtype=np.long) 
-    col  = np.array([s.indices], dtype=np.long)
+    rstt = np.array([s.indptr],  dtype=np.int64) 
+    col  = np.array([s.indices], dtype=np.int64)
 
     with open(filename, "wb") as fp:
        real.tofile(fp)
@@ -106,7 +106,7 @@ def case_save_bin(a, b, x, q, status, degen, order, casename):
     filename = cname + '_rhs.bin'
     print('saving RHS vector to binary file:     ', filename)
 
-    nb = np.array([len(b)], dtype=np.long)
+    nb = np.array([len(b)], dtype=np.int64)
     vb = np.array([b],      dtype=np.double)
 
     with open(filename, "wb") as fp:
@@ -118,7 +118,7 @@ def case_save_bin(a, b, x, q, status, degen, order, casename):
        filename = cname + '_sol.bin'
        print('saving solution vector to binary file:', filename)
  
-       nx = np.array([len(x)], dtype=np.long)
+       nx = np.array([len(x)], dtype=np.int64)
        vx = np.array([x],      dtype=np.double)
     
        with open(filename, "wb") as fp:
@@ -132,15 +132,15 @@ def case_save_bin(a, b, x, q, status, degen, order, casename):
 
        s = csr_matrix(q)
        rank = s.shape
-       nr   = np.long(rank[0])
-       nc   = np.long(rank[1])
-       nnz  = np.long(s.nnz)
+       nr   = np.int64(rank[0])
+       nc   = np.int64(rank[1])
+       nnz  = np.int64(s.nnz)
 
-       real = np.array([True], dtype=np.bool)
-       dims = np.array([nr,nc,nnz], dtype=np.long)
+       real = np.array([True], dtype=bool)
+       dims = np.array([nr,nc,nnz], dtype=np.int64)
        rval = np.array([s.data],    dtype=np.double)
-       rstt = np.array([s.indptr],  dtype=np.long)
-       col  = np.array([s.indices], dtype=np.long)
+       rstt = np.array([s.indptr],  dtype=np.int64)
+       col  = np.array([s.indices], dtype=np.int64)
 
        with open(filename, "wb") as fp:
           real.tofile(fp)
